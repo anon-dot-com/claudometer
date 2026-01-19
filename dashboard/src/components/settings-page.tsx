@@ -60,7 +60,7 @@ export function SettingsPage() {
                 </label>
               </div>
               <p className="text-xs text-zinc-500 mb-2 ml-7">
-                Opens browser to authenticate and join your team
+                Opens browser to authenticate and connect to your team
               </p>
               <div className="ml-7 flex items-center gap-2">
                 <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono overflow-x-auto">
@@ -124,11 +124,15 @@ export function SettingsPage() {
 
           <div className="mt-6 p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
             <h4 className="text-sm font-medium text-purple-400 mb-2">
-              Share with your team
+              Inviting team members
             </h4>
-            <p className="text-xs text-zinc-400 mb-2">
-              Copy this command to invite team members to {organization?.name || "your organization"}:
+            <p className="text-xs text-zinc-400 mb-3">
+              To add a new team member:
             </p>
+            <ol className="text-xs text-zinc-400 list-decimal list-inside space-y-1 mb-3">
+              <li>First, invite them using <span className="text-white">Team Management</span> on the right</li>
+              <li>Once they accept the invite, share this CLI command:</li>
+            </ol>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
                 npm i -g claudometer && claudometer login --org {organization?.id || "<org_id>"} && claudometer collect

@@ -2,13 +2,13 @@
 
 import { useAuth, useUser, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 
 function CLIAuthContent() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const { organization } = useOrganization();
-  const { setActive, userMemberships } = useOrganizationList({
+  const { setActive, userMemberships, isLoaded: isOrgListLoaded } = useOrganizationList({
     userMemberships: { infinite: true },
   });
   const searchParams = useSearchParams();
@@ -16,6 +16,7 @@ function CLIAuthContent() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [isSettingOrg, setIsSettingOrg] = useState(false);
+  const hasProcessedRef = useRef(false);
 
   useEffect(() => {
     async function authorize() {
@@ -43,35 +44,60 @@ function CLIAuthContent() {
         return;
       }
 
-      // If org ID was provided and user needs to switch/join
-      if (requestedOrgId && setActive && userMemberships?.data && !isSettingOrg) {
-        const currentOrgId = organization?.id;
+      // Don't re-process if we've already handled this request or hit an error
+      if (hasProcessedRef.current || status === "error" || status === "success") {
+        return;
+      }
 
-        // Check if user is already in the requested org
-        if (currentOrgId !== requestedOrgId) {
-          // Check if user is a member of the requested org
-          const membership = userMemberships.data.find(
-            (m) => m.organization.id === requestedOrgId
-          );
+      // Wait for user data
+      if (!user) {
+        return;
+      }
 
-          if (membership) {
-            // User is a member, switch to that org
+      // If org ID was requested, validate membership first
+      if (requestedOrgId) {
+        // Wait for organization list to fully load
+        if (!isOrgListLoaded || !userMemberships?.data) {
+          return;
+        }
+
+        // Check if user is a member of the requested org
+        const membership = userMemberships.data.find(
+          (m) => m.organization.id === requestedOrgId
+        );
+
+        if (!membership) {
+          // User is not a member - they need to be invited via Clerk first
+          hasProcessedRef.current = true;
+          setError(`You're not a member of this organization. Please ask an admin to invite you via the Claudometer dashboard, then try again.`);
+          setStatus("error");
+          return;
+        }
+
+        // User is a member, switch to that org if not already active
+        if (organization?.id !== requestedOrgId) {
+          if (!isSettingOrg && setActive) {
             setIsSettingOrg(true);
             await setActive({ organization: requestedOrgId });
-            return; // Will re-run effect after org switch
-          } else {
-            // User is not a member - they need to be invited
-            setError(`You're not a member of this organization. Please ask an admin to invite you.`);
-            setStatus("error");
-            return;
           }
+          return; // Will re-run effect after org switch
         }
       }
 
-      if (!user || !organization) {
-        // User is signed in but org not loaded yet, or no org selected
+      // At this point, either no org was requested, or we're in the right org
+      if (!organization) {
+        // User has no organization - they need to create one or be invited
+        if (!requestedOrgId) {
+          // No specific org requested but user has no org
+          hasProcessedRef.current = true;
+          setError("No organization found. Please create an organization or ask to be invited to one.");
+          setStatus("error");
+        }
         return;
       }
+
+      // Mark as processed to prevent duplicate API calls
+      hasProcessedRef.current = true;
 
       try {
         // Get a session token from Clerk
@@ -122,7 +148,7 @@ function CLIAuthContent() {
     }
 
     authorize();
-  }, [isLoaded, isSignedIn, user, organization, getToken, searchParams, router, setActive, userMemberships, isSettingOrg]);
+  }, [isLoaded, isSignedIn, user, organization, getToken, searchParams, router, setActive, userMemberships, isSettingOrg, isOrgListLoaded, status]);
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
