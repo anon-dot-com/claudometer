@@ -23,7 +23,7 @@ const periodLabels: Record<Period, string> = {
 
 // Leaderboard configuration
 const leaderboards = [
-  { metric: "claude_output_tokens", title: "Token Velocity" },
+  { metric: "claude_tokens", title: "Token Velocity" },
   { metric: "claude_messages", title: "Message Masters" },
   { metric: "git_commits", title: "Commit Champions" },
   { metric: "git_lines_added", title: "Line Leaders" },

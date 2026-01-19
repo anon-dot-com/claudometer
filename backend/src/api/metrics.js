@@ -62,15 +62,15 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// GET /api/metrics/leaderboard - Get org leaderboard
+// GET /api/metrics/leaderboard - Get leaderboard (org or global based on scope param)
 router.get('/leaderboard', async (req, res) => {
   try {
     const { orgId } = req.auth;
-    const { metric = 'claude_output_tokens', limit = 10, period = 'all' } = req.query;
+    const { metric = 'claude_tokens', limit = 10, period = 'all', scope = 'org' } = req.query;
 
-    const leaderboard = await getOrgLeaderboard(orgId, metric, parseInt(limit), period);
+    const leaderboard = await getOrgLeaderboard(orgId, metric, parseInt(limit), period, scope);
 
-    res.json({ leaderboard, metric, period });
+    res.json({ leaderboard, metric, period, scope });
   } catch (error) {
     console.error('Failed to get leaderboard:', error);
     res.status(500).json({ error: 'Failed to get leaderboard' });

@@ -195,9 +195,28 @@ export async function getUserLatestSyncInfo(userId) {
   return result.rows[0];
 }
 
+// Helper to build date filter for metrics queries
+function buildDateFilter(period) {
+  const localDate = "(NOW() AT TIME ZONE 'America/Los_Angeles')::date";
+
+  switch (period) {
+    case 'today':
+      return `d.date = ${localDate}`;
+    case 'week':
+      return `d.date >= ${localDate} - INTERVAL '7 days'`;
+    case 'month':
+      return `d.date >= ${localDate} - INTERVAL '30 days'`;
+    case 'all':
+      return 'TRUE';
+    default:
+      return `d.date >= ${localDate} - INTERVAL '30 days'`;
+  }
+}
+
 // Get org leaderboard with time period support
 // Uses daily_metrics as the single source of truth for ALL periods
-export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit = 10, period = 'all') {
+// Finds users currently in the org and sums ALL their metrics (regardless of org_id on metrics)
+export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit = 10, period = 'all', scope = 'org') {
   const allowedMetrics = [
     'claude_tokens',
     'claude_messages',
@@ -209,46 +228,38 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
     metric = 'claude_tokens';
   }
 
-  // Map frontend metric names to actual DB column names
-  const metricColumnMap = {
-    'claude_output_tokens': 'claude_tokens',
-    'claude_messages': 'claude_messages',
-    'git_commits': 'git_commits',
-    'git_lines_added': 'git_lines_added',
-  };
-  const dbColumn = metricColumnMap[metric] || 'claude_tokens';
+  const dateFilter = buildDateFilter(period);
 
-  // Use Pacific timezone for date comparisons to match user's local time
-  const localDate = "(NOW() AT TIME ZONE 'America/Los_Angeles')::date";
-
-  let dateFilter;
-  switch (period) {
-    case 'today':
-      dateFilter = `date = ${localDate}`;
-      break;
-    case 'week':
-      dateFilter = `date >= ${localDate} - INTERVAL '7 days'`;
-      break;
-    case 'month':
-      dateFilter = `date >= ${localDate} - INTERVAL '30 days'`;
-      break;
-    case 'all':
-      dateFilter = 'TRUE'; // No date filter - sum everything
-      break;
-    default:
-      dateFilter = `date >= ${localDate} - INTERVAL '30 days'`;
+  // Global scope: query all users across all orgs
+  if (scope === 'global') {
+    const result = await db.query(
+      `SELECT
+        u.id, u.name, u.email,
+        COALESCE(SUM(d.${metric}), 0) as value,
+        MAX(d.updated_at) as reported_at
+       FROM users u
+       LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
+       GROUP BY u.id, u.name, u.email
+       HAVING COALESCE(SUM(d.${metric}), 0) > 0
+       ORDER BY value DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return result.rows;
   }
 
+  // Org scope: query users who are currently in this org, then get ALL their metrics
+  // This ensures users who switch orgs see all their historical metrics
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
-      COALESCE(SUM(d.${dbColumn}), 0) as value,
+      COALESCE(SUM(d.${metric}), 0) as value,
       MAX(d.updated_at) as reported_at
-     FROM daily_metrics d
-     JOIN users u ON u.id = d.user_id
-     WHERE d.org_id = $1 AND ${dateFilter}
+     FROM users u
+     LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
+     WHERE u.org_id = $1
      GROUP BY u.id, u.name, u.email
-     HAVING COALESCE(SUM(d.${dbColumn}), 0) > 0
+     HAVING COALESCE(SUM(d.${metric}), 0) > 0
      ORDER BY value DESC
      LIMIT $2`,
     [orgId, limit]
