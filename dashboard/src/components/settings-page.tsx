@@ -60,14 +60,14 @@ export function SettingsPage() {
                 </label>
               </div>
               <p className="text-xs text-zinc-500 mb-2 ml-7">
-                Opens browser to authenticate
+                Opens browser to authenticate and join your team
               </p>
               <div className="ml-7 flex items-center gap-2">
-                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
-                  claudometer login
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono overflow-x-auto">
+                  claudometer login --org {organization?.id || "<org_id>"}
                 </code>
                 <button
-                  onClick={() => copyToClipboard("claudometer login", "login")}
+                  onClick={() => copyToClipboard(`claudometer login --org ${organization?.id || "<org_id>"}`, "login")}
                   className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
                 >
                   {copiedItem === "login" ? "Copied!" : "Copy"}
@@ -124,19 +124,19 @@ export function SettingsPage() {
 
           <div className="mt-6 p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
             <h4 className="text-sm font-medium text-purple-400 mb-2">
-              Quick Start (copy &amp; paste)
+              Share with your team
             </h4>
             <p className="text-xs text-zinc-400 mb-2">
-              Run all steps at once:
+              Copy this command to invite team members to {organization?.name || "your organization"}:
             </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
-                npm i -g claudometer && claudometer login && claudometer collect
+                npm i -g claudometer && claudometer login --org {organization?.id || "<org_id>"} && claudometer collect
               </code>
               <button
                 onClick={() =>
                   copyToClipboard(
-                    "npm i -g claudometer && claudometer login && claudometer collect",
+                    `npm i -g claudometer && claudometer login --org ${organization?.id || "<org_id>"} && claudometer collect`,
                     "quick"
                   )
                 }

@@ -18,6 +18,7 @@ program
 program
   .command('login')
   .description('Authenticate with your organization')
+  .option('--org <orgId>', 'Organization ID to join')
   .action(loginCommand);
 
 program
