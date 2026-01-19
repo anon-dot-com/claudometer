@@ -42,7 +42,7 @@ export function ActivityChart() {
         if (!token) return;
 
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/activity?days=30`,
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/my-activity?days=30`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
