@@ -1,7 +1,7 @@
 import Conf from 'conf';
 
 // Production API URL - update this after deploying your backend
-const PRODUCTION_API_URL = process.env.CLAUDOMETER_API_URL || 'https://claudometer-api.railway.app';
+const PRODUCTION_API_URL = process.env.CLAUDOMETER_API_URL || 'https://api.claudometer.ai';
 
 const config = new Conf({
   projectName: 'claudometer',

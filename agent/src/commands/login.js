@@ -4,8 +4,8 @@ import open from 'open';
 import { createServer } from 'http';
 import { saveConfig, getConfig } from '../config.js';
 
-const DEFAULT_API_URL = process.env.CLAUDOMETER_API_URL || 'http://localhost:3001';
-const DEFAULT_DASHBOARD_URL = process.env.CLAUDOMETER_DASHBOARD_URL || 'http://localhost:3000';
+const DEFAULT_API_URL = process.env.CLAUDOMETER_API_URL || 'https://api.claudometer.ai';
+const DEFAULT_DASHBOARD_URL = process.env.CLAUDOMETER_DASHBOARD_URL || 'https://www.claudometer.ai';
 
 export async function loginCommand() {
   console.log(chalk.bold('\n🔐 Claudometer Login\n'));
