@@ -2,6 +2,7 @@
 
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { MetricCard } from "./metric-card";
 import { ActivityChart } from "./activity-chart";
 import { LastUpdated } from "./last-updated";
@@ -103,14 +104,26 @@ export function Dashboard() {
       ) : error ? (
         <div className="text-red-400">{error}</div>
       ) : !metrics ? (
-        <div className="bg-zinc-900 rounded-lg p-8 text-center">
-          <h3 className="text-lg font-medium text-white mb-2">No metrics yet</h3>
-          <p className="text-zinc-400 mb-4">
-            Install the CLI to start tracking your productivity
+        <div className="bg-zinc-900 rounded-lg p-12 text-center">
+          <div className="text-5xl mb-4">📊</div>
+          <h3 className="text-xl font-semibold text-white mb-2">No metrics yet</h3>
+          <p className="text-zinc-400 mb-6 max-w-md mx-auto">
+            Install the Claudometer CLI to start tracking your Claude Code usage and Git activity.
           </p>
-          <code className="bg-zinc-800 px-4 py-2 rounded text-sm text-green-400">
-            npm install -g claudometer && claudometer login
-          </code>
+          <div className="bg-zinc-800 px-4 py-3 rounded-lg inline-block mb-6">
+            <code className="text-sm text-green-400 font-mono">
+              npm i -g claudometer && claudometer login && claudometer collect
+            </code>
+          </div>
+          <div>
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              View setup instructions
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
         </div>
       ) : (
         <>
