@@ -63,7 +63,7 @@ export function LeaderboardCard({ title, metric, entries, loading }: Leaderboard
         </div>
       ) : (
         <div className="space-y-3">
-          {entries.slice(0, 5).map((entry, index) => {
+          {entries.slice(0, 10).map((entry, index) => {
             const percentage = maxValue > 0 ? (entry.value / maxValue) * 100 : 0;
 
             return (
