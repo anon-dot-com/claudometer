@@ -49,19 +49,24 @@ router.get('/cli/callback', async (req, res) => {
     const session = await clerk.sessions.getSession(sessionId);
     const user = await clerk.users.getUser(session.userId);
 
-    const memberships = await clerk.users.getOrganizationMembershipList({
-      userId: session.userId,
-    });
+    // Use the session's active org if available, otherwise fall back to first membership
+    let orgId = session.lastActiveOrganizationId;
 
-    const orgMembership = memberships.data[0];
+    if (!orgId) {
+      const memberships = await clerk.users.getOrganizationMembershipList({
+        userId: session.userId,
+      });
 
-    if (!orgMembership) {
-      const errorUrl = `${cli_callback}?error=${encodeURIComponent('User must belong to an organization')}`;
-      return res.redirect(errorUrl);
+      const orgMembership = memberships.data[0];
+      if (!orgMembership) {
+        const errorUrl = `${cli_callback}?error=${encodeURIComponent('User must belong to an organization')}`;
+        return res.redirect(errorUrl);
+      }
+      orgId = orgMembership.organization.id;
     }
 
     const org = await clerk.organizations.getOrganization({
-      organizationId: orgMembership.organization.id,
+      organizationId: orgId,
     });
 
     // Create a token for the CLI
@@ -115,19 +120,25 @@ router.post('/token', async (req, res) => {
     // Get user details
     const user = await clerk.users.getUser(payload.sub);
 
-    // Get user's organization memberships
-    const memberships = await clerk.users.getOrganizationMembershipList({
-      userId: payload.sub,
-    });
+    // Clerk token includes org_id if user has an active organization
+    // Use that instead of blindly taking the first membership
+    let orgId = payload.org_id;
 
-    const orgMembership = memberships.data[0];
+    if (!orgId) {
+      // No active org in token, fall back to first membership
+      const memberships = await clerk.users.getOrganizationMembershipList({
+        userId: payload.sub,
+      });
 
-    if (!orgMembership) {
-      return res.status(403).json({ error: 'User must belong to an organization' });
+      const orgMembership = memberships.data[0];
+      if (!orgMembership) {
+        return res.status(403).json({ error: 'User must belong to an organization' });
+      }
+      orgId = orgMembership.organization.id;
     }
 
     const org = await clerk.organizations.getOrganization({
-      organizationId: orgMembership.organization.id,
+      organizationId: orgId,
     });
 
     // Generate our own long-lived token
