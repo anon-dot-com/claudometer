@@ -220,9 +220,9 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_output_tokens', 
       u.id, u.name, u.email,
       COALESCE(SUM(d.${metric}), 0) as value,
       MAX(d.updated_at) as reported_at
-     FROM users u
-     LEFT JOIN daily_metrics d ON d.user_id = u.id AND ${dateFilter}
-     WHERE u.org_id = $1
+     FROM daily_metrics d
+     JOIN users u ON u.id = d.user_id
+     WHERE d.org_id = $1 AND ${dateFilter}
      GROUP BY u.id, u.name, u.email
      HAVING COALESCE(SUM(d.${metric}), 0) > 0
      ORDER BY value DESC
