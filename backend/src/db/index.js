@@ -106,16 +106,16 @@ async function saveDailyMetrics(userId, orgId, metrics) {
       dailyData[day.date] = {
         claude_sessions: 0,
         claude_messages: 0,
-        claude_input_tokens: 0,
-        claude_output_tokens: 0,
+        claude_tokens: 0,
         claude_tool_calls: 0,
         git_commits: 0,
         git_lines_added: 0,
+        git_lines_deleted: 0,
       };
     }
     dailyData[day.date].claude_sessions += day.sessions || 0;
     dailyData[day.date].claude_messages += day.messages || 0;
-    dailyData[day.date].claude_output_tokens += day.tokens || 0;
+    dailyData[day.date].claude_tokens += day.tokens || 0;
     dailyData[day.date].claude_tool_calls += day.toolCalls || 0;
   }
 
@@ -126,15 +126,16 @@ async function saveDailyMetrics(userId, orgId, metrics) {
       dailyData[day.date] = {
         claude_sessions: 0,
         claude_messages: 0,
-        claude_input_tokens: 0,
-        claude_output_tokens: 0,
+        claude_tokens: 0,
         claude_tool_calls: 0,
         git_commits: 0,
         git_lines_added: 0,
+        git_lines_deleted: 0,
       };
     }
     dailyData[day.date].git_commits += day.commits || 0;
     dailyData[day.date].git_lines_added += day.linesAdded || 0;
+    dailyData[day.date].git_lines_deleted += day.linesDeleted || 0;
   }
 
   // Upsert daily metrics
@@ -142,27 +143,27 @@ async function saveDailyMetrics(userId, orgId, metrics) {
     await db.query(
       `INSERT INTO daily_metrics (
         user_id, org_id, date,
-        claude_sessions, claude_messages, claude_input_tokens, claude_output_tokens, claude_tool_calls,
-        git_commits, git_lines_added
+        claude_sessions, claude_messages, claude_tokens, claude_tool_calls,
+        git_commits, git_lines_added, git_lines_deleted
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (user_id, date) DO UPDATE SET
         claude_sessions = $4,
         claude_messages = $5,
-        claude_input_tokens = $6,
-        claude_output_tokens = $7,
-        claude_tool_calls = $8,
-        git_commits = $9,
-        git_lines_added = $10,
+        claude_tokens = $6,
+        claude_tool_calls = $7,
+        git_commits = $8,
+        git_lines_added = $9,
+        git_lines_deleted = $10,
         updated_at = NOW()`,
       [
         userId, orgId, date,
         data.claude_sessions,
         data.claude_messages,
-        data.claude_input_tokens,
-        data.claude_output_tokens,
+        data.claude_tokens,
         data.claude_tool_calls,
         data.git_commits,
         data.git_lines_added,
+        data.git_lines_deleted,
       ]
     );
   }
@@ -182,16 +183,16 @@ export async function getUserLatestMetrics(userId) {
 
 // Get org leaderboard with time period support
 // Uses daily_metrics as the single source of truth for ALL periods
-export async function getOrgLeaderboard(orgId, metric = 'claude_output_tokens', limit = 10, period = 'all') {
+export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit = 10, period = 'all') {
   const allowedMetrics = [
-    'claude_output_tokens',
+    'claude_tokens',
     'claude_messages',
     'git_commits',
     'git_lines_added',
   ];
 
   if (!allowedMetrics.includes(metric)) {
-    metric = 'claude_output_tokens';
+    metric = 'claude_tokens';
   }
 
   // Use Pacific timezone for date comparisons to match user's local time
@@ -260,11 +261,11 @@ export async function getUserMetricsByPeriod(userId, period = 'all') {
     `SELECT
       COALESCE(SUM(claude_sessions), 0) as claude_sessions,
       COALESCE(SUM(claude_messages), 0) as claude_messages,
-      COALESCE(SUM(claude_input_tokens), 0) as claude_input_tokens,
-      COALESCE(SUM(claude_output_tokens), 0) as claude_output_tokens,
+      COALESCE(SUM(claude_tokens), 0) as claude_tokens,
       COALESCE(SUM(claude_tool_calls), 0) as claude_tool_calls,
       COALESCE(SUM(git_commits), 0) as git_commits,
       COALESCE(SUM(git_lines_added), 0) as git_lines_added,
+      COALESCE(SUM(git_lines_deleted), 0) as git_lines_deleted,
       MAX(updated_at) as reported_at
      FROM daily_metrics
      WHERE user_id = $1 AND ${dateFilter}`,
@@ -279,7 +280,7 @@ export async function getOrgDailyActivity(orgId, days = 30) {
     `SELECT
       date,
       SUM(claude_messages) as claude_messages,
-      SUM(claude_output_tokens) as claude_output_tokens,
+      SUM(claude_tokens) as claude_tokens,
       SUM(git_commits) as git_commits,
       SUM(git_lines_added) as git_lines_added
      FROM daily_metrics
