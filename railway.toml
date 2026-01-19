@@ -1,12 +1,9 @@
 [build]
-builder = "nixpacks"
+builder = "dockerfile"
+dockerfilePath = "backend/Dockerfile"
 watchPatterns = ["backend/**"]
 
-[build.nixpacks]
-buildDir = "backend"
-
 [deploy]
-startCommand = "node src/index.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
