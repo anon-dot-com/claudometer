@@ -15,7 +15,7 @@ import {
 interface ActivityData {
   date: string;
   claude_messages: number;
-  claude_output_tokens: number;
+  claude_tokens: number;
   git_commits: number;
   git_lines_added: number;
 }
@@ -23,7 +23,7 @@ interface ActivityData {
 type MetricType = "tokens" | "messages" | "commits" | "lines";
 
 const metricConfig: Record<MetricType, { label: string; dataKey: string; color: string; name: string }> = {
-  tokens: { label: "Tokens", dataKey: "claude_output_tokens", color: "#a855f7", name: "Output Tokens" },
+  tokens: { label: "Tokens", dataKey: "claude_tokens", color: "#a855f7", name: "Tokens" },
   messages: { label: "Messages", dataKey: "claude_messages", color: "#3b82f6", name: "Messages" },
   commits: { label: "Commits", dataKey: "git_commits", color: "#22c55e", name: "Commits" },
   lines: { label: "Lines", dataKey: "git_lines_added", color: "#f97316", name: "Lines Added" },

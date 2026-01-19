@@ -10,12 +10,11 @@ import { LastUpdated } from "./last-updated";
 interface Metrics {
   claude_sessions: number;
   claude_messages: number;
-  claude_input_tokens: number;
-  claude_output_tokens: number;
+  claude_tokens: number;
   claude_tool_calls: number;
   git_commits: number;
   git_lines_added: number;
-  git_repos_contributed: number;
+  git_lines_deleted: number;
   reported_at: string;
 }
 
@@ -130,8 +129,8 @@ export function Dashboard() {
           {/* Metrics grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <MetricCard
-              title="Claude Output Tokens"
-              value={Number(metrics.claude_output_tokens || 0).toLocaleString()}
+              title="Claude Tokens"
+              value={Number(metrics.claude_tokens || 0).toLocaleString()}
               subtitle={periodLabels[period]}
               color="purple"
             />
