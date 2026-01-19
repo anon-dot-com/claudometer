@@ -7,7 +7,7 @@ import { saveConfig, getConfig } from '../config.js';
 const DEFAULT_API_URL = process.env.CLAUDOMETER_API_URL || 'https://api.claudometer.ai';
 const DEFAULT_DASHBOARD_URL = process.env.CLAUDOMETER_DASHBOARD_URL || 'https://www.claudometer.ai';
 
-export async function loginCommand() {
+export async function loginCommand(options) {
   console.log(chalk.bold('\n🔐 Claudometer Login\n'));
 
   const config = await getConfig();
@@ -17,6 +17,11 @@ export async function loginCommand() {
     console.log(`Organization: ${config.org?.name}`);
     console.log(`\nRun ${chalk.cyan('claudometer logout')} to sign out first.\n`);
     return;
+  }
+
+  const orgId = options?.org;
+  if (orgId) {
+    console.log(`Joining organization: ${chalk.cyan(orgId)}`);
   }
 
   // Start local server to receive OAuth callback
@@ -29,7 +34,7 @@ export async function loginCommand() {
   const spinner = ora('Waiting for authentication...').start();
 
   try {
-    const authResult = await waitForAuth(port);
+    const authResult = await waitForAuth(port, orgId);
 
     spinner.succeed('Authentication successful!');
 
@@ -59,7 +64,7 @@ export async function loginCommand() {
   }
 }
 
-async function waitForAuth(port) {
+async function waitForAuth(port, orgId) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       server.close();
@@ -109,9 +114,13 @@ async function waitForAuth(port) {
 
     server.listen(port, () => {
       // Open the browser to the dashboard CLI auth page
-      const loginUrl = `${DEFAULT_DASHBOARD_URL}/cli-auth?callback=${encodeURIComponent(
+      let loginUrl = `${DEFAULT_DASHBOARD_URL}/cli-auth?callback=${encodeURIComponent(
         `http://localhost:${port}/callback`
       )}`;
+      // Add org ID to URL if provided
+      if (orgId) {
+        loginUrl += `&org=${encodeURIComponent(orgId)}`;
+      }
       open(loginUrl);
     });
   });
