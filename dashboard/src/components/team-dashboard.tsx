@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { LeaderboardCard } from "./leaderboard-card";
 
 interface LeaderboardEntry {
@@ -34,6 +35,7 @@ export function TeamDashboard() {
   const [period, setPeriod] = useState<Period>("week");
   const [data, setData] = useState<Record<string, LeaderboardEntry[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
     async function loadLeaderboards() {
@@ -63,10 +65,15 @@ export function TeamDashboard() {
       });
 
       await Promise.all(loadPromises);
+      setInitialLoad(false);
     }
 
     loadLeaderboards();
   }, [getToken, period]);
+
+  // Check if all leaderboards are empty
+  const allEmpty = !initialLoad && Object.values(data).every((entries) => entries.length === 0);
+  const isLoading = initialLoad || Object.values(loading).some((l) => l);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -95,18 +102,43 @@ export function TeamDashboard() {
         </div>
       </div>
 
-      {/* 2x2 Leaderboard Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {leaderboards.map(({ metric, title }) => (
-          <LeaderboardCard
-            key={metric}
-            title={title}
-            metric={metric}
-            entries={data[metric] || []}
-            loading={loading[metric]}
-          />
-        ))}
-      </div>
+      {/* Empty state */}
+      {allEmpty && !isLoading ? (
+        <div className="bg-zinc-900 rounded-lg p-12 text-center">
+          <div className="text-5xl mb-4">👥</div>
+          <h3 className="text-xl font-semibold text-white mb-2">No team data yet</h3>
+          <p className="text-zinc-400 mb-6 max-w-md mx-auto">
+            Invite your team members and have them install the Claudometer CLI to see leaderboards.
+          </p>
+          <div className="bg-zinc-800 px-4 py-3 rounded-lg inline-block mb-6">
+            <code className="text-sm text-green-400 font-mono">
+              npm i -g claudometer && claudometer login && claudometer collect
+            </code>
+          </div>
+          <div>
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              Invite team members
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </div>
+      ) : (
+        /* 2x2 Leaderboard Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {leaderboards.map(({ metric, title }) => (
+            <LeaderboardCard
+              key={metric}
+              title={title}
+              metric={metric}
+              entries={data[metric] || []}
+              loading={loading[metric]}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
