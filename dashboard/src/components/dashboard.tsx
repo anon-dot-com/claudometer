@@ -10,12 +10,11 @@ import { LastUpdated } from "./last-updated";
 interface Metrics {
   claude_sessions: number;
   claude_messages: number;
-  claude_input_tokens: number;
-  claude_output_tokens: number;
+  claude_tokens: number;
   claude_tool_calls: number;
   git_commits: number;
   git_lines_added: number;
-  git_repos_contributed: number;
+  git_lines_deleted: number;
   reported_at: string;
 }
 
@@ -32,6 +31,8 @@ export function Dashboard() {
   const { getToken } = useAuth();
   const { user } = useUser();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [statsCacheUpdatedAt, setStatsCacheUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("week");
@@ -53,6 +54,8 @@ export function Dashboard() {
         if (res.ok) {
           const data = await res.json();
           setMetrics(data.metrics);
+          setLastSynced(data.lastSynced);
+          setStatsCacheUpdatedAt(data.statsCacheUpdatedAt);
         }
       } catch (err) {
         setError("Failed to load metrics");
@@ -77,11 +80,14 @@ export function Dashboard() {
             <p className="text-zinc-400">
               Here&apos;s your engineering productivity overview
             </p>
-            {metrics?.reported_at && (
-              <LastUpdated
-                timestamp={metrics.reported_at}
-                prefix="Stats last synced"
-              />
+            {lastSynced && (
+              <LastUpdated timestamp={lastSynced} prefix="Last synced" />
+            )}
+            {statsCacheUpdatedAt && (
+              <>
+                <span className="text-zinc-600">•</span>
+                <LastUpdated timestamp={statsCacheUpdatedAt} prefix="Cache updated" />
+              </>
             )}
           </div>
         </div>
@@ -144,8 +150,8 @@ export function Dashboard() {
           {/* Metrics grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <MetricCard
-              title="Claude Output Tokens"
-              value={Number(metrics.claude_output_tokens || 0).toLocaleString()}
+              title="Claude Tokens"
+              value={Number(metrics.claude_tokens || 0).toLocaleString()}
               subtitle={periodLabels[period]}
               color="purple"
             />

@@ -1,27 +1,21 @@
 "use client";
 
-import { useAuth, useUser, useOrganization, useOrganizationList } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, useRef } from "react";
 
 function CLIAuthContent() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user } = useUser();
-  const { organization } = useOrganization();
-  const { setActive, userMemberships, isLoaded: isOrgListLoaded } = useOrganizationList({
-    userMemberships: { infinite: true },
-  });
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
-  const [isSettingOrg, setIsSettingOrg] = useState(false);
   const hasProcessedRef = useRef(false);
 
   useEffect(() => {
     async function authorize() {
       const callback = searchParams.get("callback");
-      const requestedOrgId = searchParams.get("org");
 
       if (!callback) {
         setError("Missing callback URL");
@@ -36,10 +30,7 @@ function CLIAuthContent() {
 
       // Redirect to sign-in if not authenticated
       if (!isSignedIn) {
-        let returnUrl = `/cli-auth?callback=${encodeURIComponent(callback)}`;
-        if (requestedOrgId) {
-          returnUrl += `&org=${encodeURIComponent(requestedOrgId)}`;
-        }
+        const returnUrl = `/cli-auth?callback=${encodeURIComponent(callback)}`;
         router.push(`/sign-in?redirect_url=${encodeURIComponent(returnUrl)}`);
         return;
       }
@@ -51,48 +42,6 @@ function CLIAuthContent() {
 
       // Wait for user data
       if (!user) {
-        return;
-      }
-
-      // If org ID was requested, validate membership first
-      if (requestedOrgId) {
-        // Wait for organization list to fully load
-        if (!isOrgListLoaded || !userMemberships?.data) {
-          return;
-        }
-
-        // Check if user is a member of the requested org
-        const membership = userMemberships.data.find(
-          (m) => m.organization.id === requestedOrgId
-        );
-
-        if (!membership) {
-          // User is not a member - they need to be invited via Clerk first
-          hasProcessedRef.current = true;
-          setError(`You're not a member of this organization. Please ask an admin to invite you via the Claudometer dashboard, then try again.`);
-          setStatus("error");
-          return;
-        }
-
-        // User is a member, switch to that org if not already active
-        if (organization?.id !== requestedOrgId) {
-          if (!isSettingOrg && setActive) {
-            setIsSettingOrg(true);
-            await setActive({ organization: requestedOrgId });
-          }
-          return; // Will re-run effect after org switch
-        }
-      }
-
-      // At this point, either no org was requested, or we're in the right org
-      if (!organization) {
-        // User has no organization - they need to create one or be invited
-        if (!requestedOrgId) {
-          // No specific org requested but user has no org
-          hasProcessedRef.current = true;
-          setError("No organization found. Please create an organization or ask to be invited to one.");
-          setStatus("error");
-        }
         return;
       }
 
@@ -120,8 +69,8 @@ function CLIAuthContent() {
         });
 
         if (!tokenResponse.ok) {
-          const error = await tokenResponse.json();
-          setError(error.error || "Failed to exchange token");
+          const errorData = await tokenResponse.json();
+          setError(errorData.error || "Failed to exchange token");
           setStatus("error");
           return;
         }
@@ -130,9 +79,13 @@ function CLIAuthContent() {
 
         // Build the callback URL with auth data
         const userJson = encodeURIComponent(JSON.stringify(tokenData.user));
-        const orgJson = encodeURIComponent(JSON.stringify(tokenData.org));
+        let callbackUrl = `${callback}?token=${tokenData.token}&user=${userJson}`;
 
-        const callbackUrl = `${callback}?token=${tokenData.token}&user=${userJson}&org=${orgJson}`;
+        // Include org info if available (for display purposes)
+        if (tokenData.org) {
+          const orgJson = encodeURIComponent(JSON.stringify(tokenData.org));
+          callbackUrl += `&org=${orgJson}`;
+        }
 
         setStatus("success");
 
@@ -148,7 +101,7 @@ function CLIAuthContent() {
     }
 
     authorize();
-  }, [isLoaded, isSignedIn, user, organization, getToken, searchParams, router, setActive, userMemberships, isSettingOrg, isOrgListLoaded, status]);
+  }, [isLoaded, isSignedIn, user, getToken, searchParams, router, status]);
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
