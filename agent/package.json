@@ -1,6 +1,6 @@
 {
   "name": "claudometer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Track engineering productivity metrics across Claude Code usage and Git activity",
   "main": "src/index.js",
   "bin": {
@@ -32,11 +32,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/anthropics/claudometer"
+    "url": "https://github.com/anon-dot-com/claudometer"
   },
-  "homepage": "https://claudometer.dev",
+  "homepage": "https://claudometer.ai",
   "bugs": {
-    "url": "https://github.com/anthropics/claudometer/issues"
+    "url": "https://github.com/anon-dot-com/claudometer/issues"
   },
   "dependencies": {
     "commander": "^12.0.0",
