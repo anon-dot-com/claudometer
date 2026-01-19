@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+watchPatterns = ["backend/**"]
+
+[build.nixpacks]
+buildDir = "backend"
+
+[deploy]
+startCommand = "node src/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
