@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS metrics_snapshots (
   user_id TEXT REFERENCES users(id) NOT NULL,
   org_id TEXT REFERENCES organizations(id) NOT NULL,
   reported_at TIMESTAMPTZ NOT NULL,
+  stats_cache_updated_at TIMESTAMPTZ,          -- When stats-cache.json was last updated by Claude
 
   -- Claude metrics
   claude_sessions INTEGER DEFAULT 0,

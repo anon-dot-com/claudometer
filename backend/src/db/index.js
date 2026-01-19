@@ -59,17 +59,18 @@ export async function findOrCreateUser(id, email, name, orgId) {
 export async function saveMetricsSnapshot(userId, orgId, metrics) {
   const result = await db.query(
     `INSERT INTO metrics_snapshots (
-      user_id, org_id, reported_at,
+      user_id, org_id, reported_at, stats_cache_updated_at,
       claude_sessions, claude_messages, claude_input_tokens, claude_output_tokens,
       claude_cache_read_tokens, claude_cache_creation_tokens, claude_tool_calls, claude_by_model,
       git_repos_scanned, git_repos_contributed, git_commits, git_lines_added,
       git_lines_deleted, git_files_changed, git_by_repo
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
     RETURNING id`,
     [
       userId,
       orgId,
       metrics.timestamp,
+      metrics.claude?.lastComputedDate || null,
       metrics.claude?.totals?.sessions || 0,
       metrics.claude?.totals?.messages || 0,
       metrics.claude?.totals?.inputTokens || 0,
@@ -173,6 +174,19 @@ async function saveDailyMetrics(userId, orgId, metrics) {
 export async function getUserLatestMetrics(userId) {
   const result = await db.query(
     `SELECT * FROM metrics_snapshots
+     WHERE user_id = $1
+     ORDER BY reported_at DESC
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0];
+}
+
+// Get user's latest sync info (for displaying timestamps)
+export async function getUserLatestSyncInfo(userId) {
+  const result = await db.query(
+    `SELECT reported_at, stats_cache_updated_at, created_at
+     FROM metrics_snapshots
      WHERE user_id = $1
      ORDER BY reported_at DESC
      LIMIT 1`,
@@ -297,6 +311,23 @@ export async function getOrgDailyActivity(orgId, days = 30) {
      GROUP BY date
      ORDER BY date`,
     [orgId]
+  );
+  return result.rows;
+}
+
+// Get user daily activity (for My Usage page)
+export async function getUserDailyActivity(userId, days = 30) {
+  const result = await db.query(
+    `SELECT
+      date,
+      claude_messages,
+      claude_tokens,
+      git_commits,
+      git_lines_added
+     FROM daily_metrics
+     WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '${days} days'
+     ORDER BY date`,
+    [userId]
   );
   return result.rows;
 }
