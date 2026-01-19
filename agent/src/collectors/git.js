@@ -62,10 +62,11 @@ export async function collectGitMetrics(options = {}) {
       // Merge daily stats
       for (const [date, dayStats] of Object.entries(repoMetrics.daily || {})) {
         if (!metrics.daily[date]) {
-          metrics.daily[date] = { commits: 0, linesAdded: 0 };
+          metrics.daily[date] = { commits: 0, linesAdded: 0, linesDeleted: 0 };
         }
         metrics.daily[date].commits += dayStats.commits;
         metrics.daily[date].linesAdded += dayStats.linesAdded;
+        metrics.daily[date].linesDeleted += dayStats.linesDeleted;
       }
     }
   }
@@ -135,7 +136,7 @@ async function getRepoMetrics(repoPath, author, since) {
         commits++;
 
         if (!daily[date]) {
-          daily[date] = { commits: 0, linesAdded: 0 };
+          daily[date] = { commits: 0, linesAdded: 0, linesDeleted: 0 };
         }
         daily[date].commits++;
       } else if (line.includes('insertion') || line.includes('deletion')) {
@@ -152,7 +153,13 @@ async function getRepoMetrics(repoPath, author, since) {
             daily[currentDate].linesAdded += added;
           }
         }
-        if (deleteMatch) linesDeleted += parseInt(deleteMatch[1], 10);
+        if (deleteMatch) {
+          const deleted = parseInt(deleteMatch[1], 10);
+          linesDeleted += deleted;
+          if (currentDate && daily[currentDate]) {
+            daily[currentDate].linesDeleted += deleted;
+          }
+        }
       }
     }
 

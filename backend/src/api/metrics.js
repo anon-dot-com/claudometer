@@ -5,8 +5,10 @@ import {
   saveMetricsSnapshot,
   getUserLatestMetrics,
   getUserMetricsByPeriod,
+  getUserLatestSyncInfo,
   getOrgLeaderboard,
   getOrgDailyActivity,
+  getUserDailyActivity,
 } from '../db/index.js';
 
 const router = Router();
@@ -42,12 +44,18 @@ router.get('/me', async (req, res) => {
     console.log('GET /me - userId:', userId);
     const { period = 'all' } = req.query;
     const metrics = await getUserMetricsByPeriod(userId, period);
+    const syncInfo = await getUserLatestSyncInfo(userId);
 
     if (!metrics) {
       return res.json({ metrics: null, message: 'No metrics reported yet' });
     }
 
-    res.json({ metrics, period });
+    res.json({
+      metrics,
+      period,
+      lastSynced: syncInfo?.reported_at || null,
+      statsCacheUpdatedAt: syncInfo?.stats_cache_updated_at || null,
+    });
   } catch (error) {
     console.error('Failed to get metrics:', error);
     res.status(500).json({ error: 'Failed to get metrics' });
@@ -81,6 +89,21 @@ router.get('/activity', async (req, res) => {
   } catch (error) {
     console.error('Failed to get activity:', error);
     res.status(500).json({ error: 'Failed to get activity' });
+  }
+});
+
+// GET /api/metrics/my-activity - Get current user's daily activity
+router.get('/my-activity', async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { days = 30 } = req.query;
+
+    const activity = await getUserDailyActivity(userId, parseInt(days));
+
+    res.json({ activity });
+  } catch (error) {
+    console.error('Failed to get user activity:', error);
+    res.status(500).json({ error: 'Failed to get user activity' });
   }
 });
 

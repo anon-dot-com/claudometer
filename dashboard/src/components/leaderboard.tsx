@@ -20,7 +20,7 @@ export function Leaderboard({ period: externalPeriod }: LeaderboardProps) {
   const { getToken } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [metric, setMetric] = useState("claude_output_tokens");
+  const [metric, setMetric] = useState("claude_tokens");
   const [period, setPeriod] = useState<Period>(externalPeriod || "week");
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function Leaderboard({ period: externalPeriod }: LeaderboardProps) {
   }, [getToken, metric, period]);
 
   const metricLabels: Record<string, string> = {
-    claude_output_tokens: "Tokens",
+    claude_tokens: "Tokens",
     claude_messages: "Messages",
     git_commits: "Commits",
     git_lines_added: "Lines",
@@ -91,7 +91,7 @@ export function Leaderboard({ period: externalPeriod }: LeaderboardProps) {
             onChange={(e) => setMetric(e.target.value)}
             className="bg-zinc-800 text-sm text-zinc-300 rounded px-2 py-1 border border-zinc-700"
           >
-            <option value="claude_output_tokens">Tokens</option>
+            <option value="claude_tokens">Tokens</option>
             <option value="claude_messages">Messages</option>
             <option value="git_commits">Commits</option>
             <option value="git_lines_added">Lines Added</option>

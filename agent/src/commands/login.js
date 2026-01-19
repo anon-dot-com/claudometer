@@ -7,21 +7,15 @@ import { saveConfig, getConfig } from '../config.js';
 const DEFAULT_API_URL = process.env.CLAUDOMETER_API_URL || 'https://api.claudometer.ai';
 const DEFAULT_DASHBOARD_URL = process.env.CLAUDOMETER_DASHBOARD_URL || 'https://www.claudometer.ai';
 
-export async function loginCommand(options) {
+export async function loginCommand() {
   console.log(chalk.bold('\n🔐 Claudometer Login\n'));
 
   const config = await getConfig();
 
   if (config.token) {
     console.log(chalk.yellow(`Already logged in as ${config.user?.email}`));
-    console.log(`Organization: ${config.org?.name}`);
     console.log(`\nRun ${chalk.cyan('claudometer logout')} to sign out first.\n`);
     return;
-  }
-
-  const orgId = options?.org;
-  if (orgId) {
-    console.log(`Joining organization: ${chalk.cyan(orgId)}`);
   }
 
   // Start local server to receive OAuth callback
@@ -34,7 +28,7 @@ export async function loginCommand(options) {
   const spinner = ora('Waiting for authentication...').start();
 
   try {
-    const authResult = await waitForAuth(port, orgId);
+    const authResult = await waitForAuth(port);
 
     spinner.succeed('Authentication successful!');
 
@@ -47,16 +41,11 @@ export async function loginCommand(options) {
         email: authResult.user.email,
         name: authResult.user.name,
       },
-      org: {
-        id: authResult.org.id,
-        name: authResult.org.name,
-      },
       apiUrl: DEFAULT_API_URL,
     });
 
     console.log(chalk.green(`\n✓ Logged in as ${authResult.user.email}`));
-    console.log(`  Organization: ${authResult.org.name}`);
-    console.log(`\nRun ${chalk.cyan('claudometer start')} to begin tracking.\n`);
+    console.log(`\nRun ${chalk.cyan('claudometer collect')} to sync your metrics.\n`);
   } catch (error) {
     spinner.fail('Authentication failed');
     console.log(chalk.red(`\nError: ${error.message}`));
@@ -64,7 +53,7 @@ export async function loginCommand(options) {
   }
 }
 
-async function waitForAuth(port, orgId) {
+async function waitForAuth(port) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       server.close();
@@ -78,7 +67,6 @@ async function waitForAuth(port, orgId) {
         const token = url.searchParams.get('token');
         const refreshToken = url.searchParams.get('refresh_token');
         const userJson = url.searchParams.get('user');
-        const orgJson = url.searchParams.get('org');
         const error = url.searchParams.get('error');
 
         if (error) {
@@ -90,7 +78,7 @@ async function waitForAuth(port, orgId) {
           return;
         }
 
-        if (token && userJson && orgJson) {
+        if (token && userJson) {
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(getSuccessHtml());
           clearTimeout(timeout);
@@ -100,7 +88,6 @@ async function waitForAuth(port, orgId) {
             token,
             refreshToken,
             user: JSON.parse(decodeURIComponent(userJson)),
-            org: JSON.parse(decodeURIComponent(orgJson)),
           });
         } else {
           res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -114,13 +101,9 @@ async function waitForAuth(port, orgId) {
 
     server.listen(port, () => {
       // Open the browser to the dashboard CLI auth page
-      let loginUrl = `${DEFAULT_DASHBOARD_URL}/cli-auth?callback=${encodeURIComponent(
+      const loginUrl = `${DEFAULT_DASHBOARD_URL}/cli-auth?callback=${encodeURIComponent(
         `http://localhost:${port}/callback`
       )}`;
-      // Add org ID to URL if provided
-      if (orgId) {
-        loginUrl += `&org=${encodeURIComponent(orgId)}`;
-      }
       open(loginUrl);
     });
   });

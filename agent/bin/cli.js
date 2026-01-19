@@ -17,13 +17,12 @@ program
 
 program
   .command('login')
-  .description('Authenticate with your organization')
-  .option('--org <orgId>', 'Organization ID to join')
+  .description('Authenticate with Claudometer')
   .action(loginCommand);
 
 program
   .command('logout')
-  .description('Sign out from your organization')
+  .description('Sign out from Claudometer')
   .action(logoutCommand);
 
 program
