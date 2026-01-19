@@ -195,6 +195,15 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
     metric = 'claude_tokens';
   }
 
+  // Map frontend metric names to actual DB column names
+  const metricColumnMap = {
+    'claude_output_tokens': 'claude_tokens',
+    'claude_messages': 'claude_messages',
+    'git_commits': 'git_commits',
+    'git_lines_added': 'git_lines_added',
+  };
+  const dbColumn = metricColumnMap[metric] || 'claude_tokens';
+
   // Use Pacific timezone for date comparisons to match user's local time
   const localDate = "(NOW() AT TIME ZONE 'America/Los_Angeles')::date";
 
@@ -219,13 +228,13 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
-      COALESCE(SUM(d.${metric}), 0) as value,
+      COALESCE(SUM(d.${dbColumn}), 0) as value,
       MAX(d.updated_at) as reported_at
      FROM daily_metrics d
      JOIN users u ON u.id = d.user_id
      WHERE d.org_id = $1 AND ${dateFilter}
      GROUP BY u.id, u.name, u.email
-     HAVING COALESCE(SUM(d.${metric}), 0) > 0
+     HAVING COALESCE(SUM(d.${dbColumn}), 0) > 0
      ORDER BY value DESC
      LIMIT $2`,
     [orgId, limit]
