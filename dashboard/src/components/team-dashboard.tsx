@@ -47,7 +47,7 @@ export function TeamDashboard() {
         setLoading((prev) => ({ ...prev, [metric]: true }));
         try {
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/leaderboard?metric=${metric}&period=${period}&limit=5`,
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/leaderboard?metric=${metric}&period=${period}&limit=10`,
             {
               headers: { Authorization: `Bearer ${token}` },
             }
