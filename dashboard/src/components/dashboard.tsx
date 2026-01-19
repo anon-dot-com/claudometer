@@ -68,7 +68,7 @@ export function Dashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Welcome message and period selector */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-2xl font-bold text-white">
             Welcome back, {user?.firstName || "there"}
@@ -78,7 +78,10 @@ export function Dashboard() {
               Here&apos;s your engineering productivity overview
             </p>
             {metrics?.reported_at && (
-              <LastUpdated timestamp={metrics.reported_at} prefix="Stats last synced" />
+              <LastUpdated
+                timestamp={metrics.reported_at}
+                prefix="Stats last synced"
+              />
             )}
           </div>
         </div>
@@ -97,6 +100,17 @@ export function Dashboard() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Note about Claude stats caching */}
+      <div className="mb-6 px-3 py-2 bg-zinc-900/50 border border-zinc-800 rounded-lg flex items-start gap-2">
+        <svg className="w-4 h-4 text-zinc-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" strokeWidth="2" />
+          <path strokeWidth="2" d="M12 16v-4M12 8h.01" />
+        </svg>
+        <p className="text-xs text-zinc-500">
+          Claude updates its usage stats on its own schedule. Metrics may sometimes take a day or more to appear — this is normal and not an error.
+        </p>
       </div>
 
       {loading ? (
