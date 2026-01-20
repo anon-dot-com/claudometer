@@ -2,6 +2,7 @@ import pg from 'pg';
 import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { clerk } from '../middleware/auth.js';
 
 const { Pool } = pg;
 
@@ -67,6 +68,63 @@ export async function ensureOrgMembership(userId, orgId) {
      ON CONFLICT (user_id, org_id) DO NOTHING`,
     [userId, orgId]
   );
+}
+
+// Sync all org members from Clerk to database
+// This ensures we have records for all org members, even if they haven't synced metrics yet
+export async function syncOrgMembersFromClerk(orgId, orgName) {
+  if (!orgId) return;
+
+  try {
+    // Fetch all org members from Clerk
+    const memberships = await clerk.organizations.getOrganizationMembershipList({
+      organizationId: orgId,
+      limit: 100, // Clerk's max per page
+    });
+
+    // Ensure org exists
+    await db.query(
+      `INSERT INTO organizations (id, name)
+       VALUES ($1, $2)
+       ON CONFLICT (id) DO UPDATE SET name = $2, updated_at = NOW()`,
+      [orgId, orgName || 'Unknown Organization']
+    );
+
+    // Create/update user and membership for each member
+    for (const membership of memberships.data) {
+      const userId = membership.publicUserData?.userId;
+      if (!userId) continue;
+
+      const email = membership.publicUserData?.identifier || '';
+      const firstName = membership.publicUserData?.firstName || '';
+      const lastName = membership.publicUserData?.lastName || '';
+      const name = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+
+      // Create/update user
+      await db.query(
+        `INSERT INTO users (id, email, name, org_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           email = COALESCE(NULLIF($2, ''), users.email),
+           name = COALESCE(NULLIF($3, ''), users.name),
+           updated_at = NOW()`,
+        [userId, email, name, orgId]
+      );
+
+      // Create membership
+      await db.query(
+        `INSERT INTO user_org_memberships (user_id, org_id)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id, org_id) DO NOTHING`,
+        [userId, orgId]
+      );
+    }
+
+    console.log(`Synced ${memberships.data.length} members for org ${orgId}`);
+  } catch (error) {
+    console.error('Failed to sync org members from Clerk:', error.message);
+    // Don't throw - this is a best-effort sync
+  }
 }
 
 // Organization queries
