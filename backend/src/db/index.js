@@ -73,29 +73,14 @@ export async function ensureOrgMembership(userId, orgId) {
 // Sync all org members from Clerk to database
 // This ensures we have records for all org members, even if they haven't synced metrics yet
 export async function syncOrgMembersFromClerk(orgId, orgName) {
-  console.log(`[Clerk Sync] Starting sync for org ${orgId} (${orgName})`);
-  if (!orgId) {
-    console.log(`[Clerk Sync] No orgId provided, skipping`);
-    return;
-  }
+  if (!orgId) return;
 
   try {
     // Fetch all org members from Clerk
-    const hasSecretKey = !!process.env.CLERK_SECRET_KEY;
-    const secretKeyPrefix = process.env.CLERK_SECRET_KEY?.substring(0, 10) || 'NOT SET';
-    console.log(`[Clerk Sync] Calling Clerk API for org ${orgId}... (secretKey configured: ${hasSecretKey}, prefix: ${secretKeyPrefix})`);
-
     const memberships = await clerk.organizations.getOrganizationMembershipList({
       organizationId: orgId,
-      limit: 100, // Clerk's max per page
+      limit: 100,
     });
-
-    console.log(`[Clerk Sync] Org ${orgId}: Clerk returned ${memberships.data?.length ?? 'undefined'} members (totalCount: ${memberships.totalCount})`);
-
-    // Log the first member's structure to debug data format
-    if (memberships.data?.length > 0) {
-      console.log(`[Clerk Sync] First member raw structure:`, JSON.stringify(memberships.data[0], null, 2));
-    }
 
     // Ensure org exists
     await db.query(
@@ -106,23 +91,16 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
     );
 
     let synced = 0;
-    let skipped = 0;
 
     // Create/update user and membership for each member
     for (const membership of memberships.data) {
       const userId = membership.publicUserData?.userId;
-      if (!userId) {
-        console.log(`[Clerk Sync] Skipping member - no userId. Raw data:`, JSON.stringify(membership, null, 2));
-        skipped++;
-        continue;
-      }
+      if (!userId) continue;
 
       const email = membership.publicUserData?.identifier || '';
       const firstName = membership.publicUserData?.firstName || '';
       const lastName = membership.publicUserData?.lastName || '';
       const name = `${firstName} ${lastName}`.trim() || email.split('@')[0];
-
-      console.log(`[Clerk Sync] Processing member: ${userId} (${email || 'no email'})`);
 
       // Create/update user
       await db.query(
@@ -146,11 +124,9 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
       synced++;
     }
 
-    console.log(`[Clerk Sync] Org ${orgId}: Synced ${synced} members, skipped ${skipped}`);
+    console.log(`[Clerk Sync] ${orgName}: synced ${synced}/${memberships.totalCount} members`);
   } catch (error) {
-    console.error('[Clerk Sync] Failed to sync org members from Clerk:', error.message);
-    console.error('[Clerk Sync] Full error:', error);
-    // Don't throw - this is a best-effort sync
+    console.error('[Clerk Sync] Failed:', error.message);
   }
 }
 
