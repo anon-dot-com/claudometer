@@ -30,48 +30,8 @@ const leaderboards = [
   { metric: "git_lines_added", title: "Line Leaders" },
 ];
 
-// Helper to decode JWT payload (without verification - just to read claims)
-function decodeJwtPayload(token: string): { org_id?: string } | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-// Helper to get token with correct org_id, retrying if needed
-async function getTokenWithOrg(
-  getToken: (options?: { skipCache?: boolean }) => Promise<string | null>,
-  expectedOrgId: string,
-  maxRetries = 5,
-  delayMs = 200
-): Promise<string | null> {
-  for (let i = 0; i < maxRetries; i++) {
-    const token = await getToken({ skipCache: true });
-    if (!token) return null;
-
-    const payload = decodeJwtPayload(token);
-    const tokenOrgId = payload?.org_id;
-
-    if (tokenOrgId === expectedOrgId) {
-      console.log(`[TeamDashboard] Token org_id matches expected (attempt ${i + 1})`);
-      return token;
-    }
-
-    console.log(`[TeamDashboard] Token org_id mismatch: token=${tokenOrgId}, expected=${expectedOrgId}, retrying in ${delayMs}ms (attempt ${i + 1}/${maxRetries})`);
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-  }
-
-  // Return token anyway after max retries (let backend handle it)
-  console.warn(`[TeamDashboard] Could not get token with correct org_id after ${maxRetries} retries`);
-  return await getToken({ skipCache: true });
-}
-
 export function TeamDashboard() {
-  const { getToken, orgId } = useAuth();
+  const { getToken } = useAuth();
   const { organization } = useOrganization();
   const [period, setPeriod] = useState<Period>("week");
   const [data, setData] = useState<Record<string, LeaderboardEntry[]>>({});
@@ -84,31 +44,28 @@ export function TeamDashboard() {
     setInitialLoad(true);
 
     async function loadLeaderboards() {
-      // Wait until session's active org matches the selected org
-      // (OrganizationSwitcher calls setActive which updates both, but there can be a race)
-      if (organization?.id && orgId !== organization.id) {
-        console.log(`[TeamDashboard] Waiting for org sync: session=${orgId}, selected=${organization.id}`);
-        return;
-      }
+      // Use the organization from useOrganization() which reflects the UI selection
+      const selectedOrgId = organization?.id;
+      const selectedOrgName = organization?.name;
 
-      if (!orgId) {
+      if (!selectedOrgId) {
         console.log(`[TeamDashboard] No org selected`);
         return;
       }
 
-      // Get token and verify it has the correct org_id (retry if needed)
-      const token = await getTokenWithOrg(getToken, orgId);
+      const token = await getToken();
       if (!token) return;
 
       // Debug: Log which org we're fetching for
-      console.log(`[TeamDashboard] Fetching leaderboards for org: ${orgId} (${organization?.name}), period: ${period}`);
+      console.log(`[TeamDashboard] Fetching leaderboards for org: ${selectedOrgId} (${selectedOrgName}), period: ${period}`);
 
       // Load all leaderboards in parallel
+      // Pass orgId explicitly as query param since Clerk token may not include it
       const loadPromises = leaderboards.map(async ({ metric }) => {
         setLoading((prev) => ({ ...prev, [metric]: true }));
         try {
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/leaderboard?metric=${metric}&period=${period}&limit=10`,
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/leaderboard?metric=${metric}&period=${period}&limit=10&orgId=${selectedOrgId}`,
             {
               headers: { Authorization: `Bearer ${token}` },
             }
@@ -131,10 +88,7 @@ export function TeamDashboard() {
     }
 
     loadLeaderboards();
-    // Re-fetch when organization changes
-    // orgId = session's active org, organization?.id = UI selected org
-    // Both need to match before we fetch (handles race condition after org switch)
-  }, [getToken, period, organization?.id, orgId]);
+  }, [getToken, period, organization?.id]);
 
   // Check if all leaderboards are empty
   const allEmpty = !initialLoad && Object.values(data).every((entries) => entries.length === 0);

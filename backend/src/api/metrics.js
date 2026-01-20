@@ -11,8 +11,22 @@ import {
   getUserDailyActivity,
   syncOrgMembersFromClerk,
 } from '../db/index.js';
+import { clerk } from '../middleware/auth.js';
 
 const router = Router();
+
+// Helper to verify user is a member of an organization
+async function verifyOrgMembership(userId, orgId) {
+  try {
+    const memberships = await clerk.users.getOrganizationMembershipList({
+      userId,
+    });
+    return memberships.data.some(m => m.organization.id === orgId);
+  } catch (error) {
+    console.error('Failed to verify org membership:', error.message);
+    return false;
+  }
+}
 
 // POST /api/metrics - Receive metrics from CLI
 router.post('/', async (req, res) => {
@@ -66,8 +80,29 @@ router.get('/me', async (req, res) => {
 // GET /api/metrics/leaderboard - Get leaderboard (org or global based on scope param)
 router.get('/leaderboard', async (req, res) => {
   try {
-    const { orgId, orgName } = req.auth;
-    const { metric = 'claude_tokens', limit = 10, period = 'all', scope = 'org' } = req.query;
+    const { userId, orgId: tokenOrgId, orgName: tokenOrgName } = req.auth;
+    const { metric = 'claude_tokens', limit = 10, period = 'all', scope = 'org', orgId: requestedOrgId } = req.query;
+
+    // Use requested orgId if provided, otherwise fall back to token's org
+    let orgId = requestedOrgId || tokenOrgId;
+    let orgName = tokenOrgName;
+
+    // If a different org was requested, verify membership
+    if (requestedOrgId && requestedOrgId !== tokenOrgId) {
+      const isMember = await verifyOrgMembership(userId, requestedOrgId);
+      if (!isMember) {
+        console.log(`[Leaderboard] User ${userId} is not a member of org ${requestedOrgId}`);
+        return res.status(403).json({ error: 'Not a member of this organization' });
+      }
+      orgId = requestedOrgId;
+      // Fetch org name for the requested org
+      try {
+        const org = await clerk.organizations.getOrganization({ organizationId: requestedOrgId });
+        orgName = org.name;
+      } catch {
+        orgName = 'Unknown';
+      }
+    }
 
     console.log(`[Leaderboard] Querying for org: ${orgId} (${orgName}), metric: ${metric}, period: ${period}`);
 
