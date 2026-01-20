@@ -81,7 +81,10 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
 
   try {
     // Fetch all org members from Clerk
-    console.log(`[Clerk Sync] Calling Clerk API for org ${orgId}...`);
+    const hasSecretKey = !!process.env.CLERK_SECRET_KEY;
+    const secretKeyPrefix = process.env.CLERK_SECRET_KEY?.substring(0, 10) || 'NOT SET';
+    console.log(`[Clerk Sync] Calling Clerk API for org ${orgId}... (secretKey configured: ${hasSecretKey}, prefix: ${secretKeyPrefix})`);
+
     const memberships = await clerk.organizations.getOrganizationMembershipList({
       organizationId: orgId,
       limit: 100, // Clerk's max per page
