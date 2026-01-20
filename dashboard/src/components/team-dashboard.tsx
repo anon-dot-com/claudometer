@@ -54,6 +54,9 @@ export function TeamDashboard() {
       const token = await getToken();
       if (!token) return;
 
+      // Debug: Log which org we're fetching for
+      console.log(`[TeamDashboard] Fetching leaderboards for org: ${orgId} (${organization?.name}), period: ${period}`);
+
       // Load all leaderboards in parallel
       const loadPromises = leaderboards.map(async ({ metric }) => {
         setLoading((prev) => ({ ...prev, [metric]: true }));
@@ -67,6 +70,7 @@ export function TeamDashboard() {
 
           if (res.ok) {
             const result = await res.json();
+            console.log(`[TeamDashboard] ${metric} response:`, result.leaderboard?.length || 0, 'entries');
             setData((prev) => ({ ...prev, [metric]: result.leaderboard || [] }));
           }
         } catch (err) {
