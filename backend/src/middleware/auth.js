@@ -1,7 +1,7 @@
 import { createClerkClient, verifyToken } from '@clerk/backend';
 import jwt from 'jsonwebtoken';
 
-const clerk = createClerkClient({
+export const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
 });
 
