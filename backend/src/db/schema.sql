@@ -102,6 +102,21 @@ CREATE TABLE IF NOT EXISTS weekly_metrics (
   UNIQUE(user_id, week_start)
 );
 
+-- Join requests (for users requesting to join an organization)
+CREATE TABLE IF NOT EXISTS join_requests (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,                  -- Clerk user ID (may not be in users table yet)
+  user_email TEXT NOT NULL,
+  user_name TEXT,
+  org_id TEXT REFERENCES organizations(id) NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, denied
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  resolved_by TEXT,                       -- Clerk user ID of admin who resolved
+
+  UNIQUE(user_id, org_id)
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_metrics_snapshots_user_reported
   ON metrics_snapshots(user_id, reported_at DESC);
@@ -120,3 +135,6 @@ CREATE INDEX IF NOT EXISTS idx_weekly_metrics_org_week
 
 CREATE INDEX IF NOT EXISTS idx_user_org_memberships_org
   ON user_org_memberships(org_id);
+
+CREATE INDEX IF NOT EXISTS idx_join_requests_org_status
+  ON join_requests(org_id, status);

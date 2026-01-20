@@ -494,4 +494,58 @@ export async function getUserDailyActivity(userId, days = 30) {
   return result.rows;
 }
 
+// Join request queries
+export async function createJoinRequest(userId, userEmail, userName, orgId) {
+  const result = await db.query(
+    `INSERT INTO join_requests (user_id, user_email, user_name, org_id)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, org_id) DO UPDATE SET
+       user_email = $2,
+       user_name = $3,
+       status = CASE WHEN join_requests.status = 'denied' THEN 'pending' ELSE join_requests.status END,
+       requested_at = CASE WHEN join_requests.status = 'denied' THEN NOW() ELSE join_requests.requested_at END
+     RETURNING *`,
+    [userId, userEmail, userName, orgId]
+  );
+  return result.rows[0];
+}
+
+export async function getJoinRequestsForOrg(orgId, status = 'pending') {
+  const result = await db.query(
+    `SELECT * FROM join_requests
+     WHERE org_id = $1 AND status = $2
+     ORDER BY requested_at DESC`,
+    [orgId, status]
+  );
+  return result.rows;
+}
+
+export async function getJoinRequestByUserAndOrg(userId, orgId) {
+  const result = await db.query(
+    `SELECT * FROM join_requests
+     WHERE user_id = $1 AND org_id = $2`,
+    [userId, orgId]
+  );
+  return result.rows[0];
+}
+
+export async function updateJoinRequestStatus(requestId, status, resolvedBy) {
+  const result = await db.query(
+    `UPDATE join_requests
+     SET status = $2, resolved_at = NOW(), resolved_by = $3
+     WHERE id = $1
+     RETURNING *`,
+    [requestId, status, resolvedBy]
+  );
+  return result.rows[0];
+}
+
+export async function getOrgById(orgId) {
+  const result = await db.query(
+    `SELECT * FROM organizations WHERE id = $1`,
+    [orgId]
+  );
+  return result.rows[0];
+}
+
 export default db;

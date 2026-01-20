@@ -9,6 +9,7 @@ import { devAuth, authenticateRequest } from './middleware/auth.js';
 const authMiddleware = process.env.NODE_ENV === 'production' ? authenticateRequest : devAuth;
 import metricsRouter from './api/metrics.js';
 import authRouter from './api/auth.js';
+import joinRequestsRouter from './api/join-requests.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,6 +45,7 @@ app.use('/auth', authRouter);
 
 // Protected API routes
 app.use('/api/metrics', authMiddleware, metricsRouter);
+app.use('/api/join-requests', authMiddleware, joinRequestsRouter);
 
 // Error handler
 app.use((err, req, res, next) => {
