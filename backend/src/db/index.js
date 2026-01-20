@@ -357,6 +357,7 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
   // Org scope: find users who are either:
   // 1. Clerk members of this org (from user_org_memberships - populated by syncOrgMembersFromClerk)
   // 2. Have synced metrics for this org (from daily_metrics - fallback if Clerk sync fails)
+  // 3. Have current org_id set to this org (from users table - covers most common case)
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
@@ -368,6 +369,8 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
        SELECT user_id FROM user_org_memberships WHERE org_id = $1
        UNION
        SELECT DISTINCT user_id FROM daily_metrics WHERE org_id = $1
+       UNION
+       SELECT id FROM users WHERE org_id = $1
      )
      GROUP BY u.id, u.name, u.email
      ORDER BY value DESC
