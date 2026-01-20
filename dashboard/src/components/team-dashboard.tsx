@@ -44,7 +44,8 @@ export function TeamDashboard() {
     setInitialLoad(true);
 
     async function loadLeaderboards() {
-      const token = await getToken();
+      // Get token scoped to the selected organization (not session's active org)
+      const token = await getToken({ organizationId: organization?.id });
       if (!token) return;
 
       // Load all leaderboards in parallel
