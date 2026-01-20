@@ -77,6 +77,8 @@ router.get('/leaderboard', async (req, res) => {
 
     const leaderboard = await getOrgLeaderboard(orgId, metric, parseInt(limit), period, scope);
 
+    // Prevent browser caching - response varies by auth token (org context)
+    res.set('Cache-Control', 'no-store');
     res.json({ leaderboard, metric, period, scope });
   } catch (error) {
     console.error('Failed to get leaderboard:', error);
