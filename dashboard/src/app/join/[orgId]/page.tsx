@@ -2,7 +2,7 @@
 
 import { useAuth, useUser, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface OrgInfo {
   id: string;
@@ -11,7 +11,7 @@ interface OrgInfo {
   membersCount?: number;
 }
 
-type RequestStatus = "none" | "pending" | "approved" | "denied" | "member" | "loading";
+type JoinStatus = "loading" | "not_signed_in" | "already_member" | "joining" | "joined" | "error";
 
 export default function JoinPage() {
   const params = useParams();
@@ -25,9 +25,10 @@ export default function JoinPage() {
   const [orgLoading, setOrgLoading] = useState(true);
   const [orgError, setOrgError] = useState<string | null>(null);
 
-  const [requestStatus, setRequestStatus] = useState<RequestStatus>("loading");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [joinStatus, setJoinStatus] = useState<JoinStatus>("loading");
+  const [error, setError] = useState<string | null>(null);
+
+  const hasAttemptedJoin = useRef(false);
 
   // Fetch organization info
   useEffect(() => {
@@ -51,79 +52,60 @@ export default function JoinPage() {
     }
   }, [orgId]);
 
-  // Check if user is already a member or has a pending request
+  // Auto-join when user is signed in
   useEffect(() => {
-    async function checkMembership() {
-      if (!isLoaded || !isSignedIn || !user) {
-        setRequestStatus("none");
+    async function handleAutoJoin() {
+      if (!isLoaded) return;
+
+      if (!isSignedIn) {
+        setJoinStatus("not_signed_in");
         return;
       }
 
-      // Check if user is already a member of this org
-      const membership = user.organizationMemberships?.find(
+      // Check if already a member
+      const membership = user?.organizationMemberships?.find(
         (m) => m.organization.id === orgId
       );
       if (membership) {
-        setRequestStatus("member");
+        setJoinStatus("already_member");
         return;
       }
 
-      // Check for existing join request
+      // Prevent duplicate join attempts
+      if (hasAttemptedJoin.current) return;
+      hasAttemptedJoin.current = true;
+
+      // Auto-join the organization
+      setJoinStatus("joining");
       try {
         const token = await getToken();
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-        const response = await fetch(`${apiUrl}/api/join-requests/status/${orgId}`, {
+        const response = await fetch(`/api/org/${orgId}/join`, {
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
-        if (response.ok) {
+        if (!response.ok) {
           const data = await response.json();
-          setRequestStatus(data.status as RequestStatus);
-        } else {
-          setRequestStatus("none");
+          throw new Error(data.error || "Failed to join organization");
         }
+
+        setJoinStatus("joined");
+
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 2000);
       } catch (error) {
-        console.error("Error checking request status:", error);
-        setRequestStatus("none");
+        setError(error instanceof Error ? error.message : "Failed to join organization");
+        setJoinStatus("error");
+        hasAttemptedJoin.current = false; // Allow retry
       }
     }
 
-    checkMembership();
-  }, [isLoaded, isSignedIn, user, orgId, getToken]);
-
-  const handleRequestJoin = async () => {
-    if (!isSignedIn) return;
-
-    setSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      const token = await getToken();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/api/join-requests`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ orgId }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to submit request");
-      }
-
-      setRequestStatus("pending");
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Failed to submit request");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    handleAutoJoin();
+  }, [isLoaded, isSignedIn, user, orgId, getToken, router]);
 
   if (orgLoading) {
     return (
@@ -177,30 +159,54 @@ export default function JoinPage() {
           </p>
         </div>
 
-        {/* Content based on auth state and request status */}
-        {!isLoaded ? (
+        {/* Content based on join status */}
+        {joinStatus === "loading" || !isLoaded ? (
           <div className="text-center text-zinc-400">Loading...</div>
-        ) : !isSignedIn ? (
-          /* Not signed in */
+        ) : joinStatus === "not_signed_in" ? (
           <div className="space-y-4">
             <p className="text-center text-zinc-300 mb-6">
-              Sign in or create an account to request to join this team.
+              Create an account to join {org.name} and start tracking your Claude Code activity.
             </p>
-            <SignUpButton mode="modal">
+            <SignUpButton
+              mode="modal"
+              forceRedirectUrl={`/join/${orgId}`}
+            >
               <button className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors">
                 Sign Up to Join
               </button>
             </SignUpButton>
-            <SignInButton mode="modal">
+            <SignInButton
+              mode="modal"
+              forceRedirectUrl={`/join/${orgId}`}
+            >
               <button className="w-full px-4 py-3 bg-zinc-800 text-white rounded-lg font-medium hover:bg-zinc-700 transition-colors">
                 Already have an account? Sign In
               </button>
             </SignInButton>
           </div>
-        ) : requestStatus === "loading" ? (
-          <div className="text-center text-zinc-400">Checking membership...</div>
-        ) : requestStatus === "member" ? (
-          /* Already a member */
+        ) : joinStatus === "joining" ? (
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-purple-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-white mb-2">Joining {org.name}...</h2>
+            <p className="text-zinc-400">Please wait a moment.</p>
+          </div>
+        ) : joinStatus === "joined" ? (
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-white mb-2">Welcome to {org.name}!</h2>
+            <p className="text-zinc-400 mb-6">You&apos;ve successfully joined the team.</p>
+            <p className="text-zinc-500 text-sm">Redirecting to dashboard...</p>
+          </div>
+        ) : joinStatus === "already_member" ? (
           <div className="text-center">
             <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -208,90 +214,34 @@ export default function JoinPage() {
               </svg>
             </div>
             <h2 className="text-lg font-semibold text-white mb-2">You&apos;re already a member!</h2>
-            <p className="text-zinc-400 mb-6">You have access to this organization.</p>
+            <p className="text-zinc-400 mb-6">You have access to {org.name}.</p>
             <button
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/dashboard")}
               className="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
             >
               Go to Dashboard
             </button>
           </div>
-        ) : requestStatus === "pending" ? (
-          /* Request pending */
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-semibold text-white mb-2">Request Pending</h2>
-            <p className="text-zinc-400 mb-6">
-              Your request to join {org.name} is waiting for admin approval.
-            </p>
-            <p className="text-zinc-500 text-sm">
-              You&apos;ll be able to access the team once an admin approves your request.
-            </p>
-          </div>
-        ) : requestStatus === "approved" ? (
-          /* Request approved */
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-semibold text-white mb-2">Request Approved!</h2>
-            <p className="text-zinc-400 mb-6">
-              Welcome to {org.name}! You can now access the team dashboard.
-            </p>
-            <button
-              onClick={() => router.push("/")}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
-            >
-              Go to Dashboard
-            </button>
-          </div>
-        ) : requestStatus === "denied" ? (
-          /* Request denied - allow resubmission */
+        ) : joinStatus === "error" ? (
           <div className="text-center">
             <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-white mb-2">Request Not Approved</h2>
-            <p className="text-zinc-400 mb-6">
-              Your previous request was not approved. You can submit a new request if you&apos;d like.
-            </p>
+            <h2 className="text-lg font-semibold text-white mb-2">Unable to Join</h2>
+            <p className="text-zinc-400 mb-4">{error || "Something went wrong."}</p>
             <button
-              onClick={handleRequestJoin}
-              disabled={submitting}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                setJoinStatus("loading");
+                hasAttemptedJoin.current = false;
+              }}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
             >
-              {submitting ? "Submitting..." : "Request Again"}
+              Try Again
             </button>
           </div>
-        ) : (
-          /* No request yet */
-          <div className="text-center">
-            <p className="text-zinc-300 mb-6">
-              Request to join {org.name} and start tracking your Claude Code activity with the team.
-            </p>
-            {submitError && (
-              <p className="text-red-400 text-sm mb-4">{submitError}</p>
-            )}
-            <button
-              onClick={handleRequestJoin}
-              disabled={submitting}
-              className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? "Submitting Request..." : "Request to Join"}
-            </button>
-            <p className="text-zinc-500 text-sm mt-4">
-              An admin will review your request and approve or deny it.
-            </p>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
