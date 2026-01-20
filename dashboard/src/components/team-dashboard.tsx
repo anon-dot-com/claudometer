@@ -51,7 +51,8 @@ export function TeamDashboard() {
         return;
       }
 
-      const token = await getToken();
+      // Force fresh token to ensure it has the current org_id after org switch
+      const token = await getToken({ skipCache: true });
       if (!token) return;
 
       // Debug: Log which org we're fetching for
