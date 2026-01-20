@@ -31,7 +31,7 @@ const leaderboards = [
 ];
 
 export function TeamDashboard() {
-  const { getToken } = useAuth();
+  const { getToken, orgId } = useAuth();
   const { organization } = useOrganization();
   const [period, setPeriod] = useState<Period>("week");
   const [data, setData] = useState<Record<string, LeaderboardEntry[]>>({});
@@ -44,8 +44,14 @@ export function TeamDashboard() {
     setInitialLoad(true);
 
     async function loadLeaderboards() {
-      // Get token scoped to the selected organization (not session's active org)
-      const token = await getToken({ organizationId: organization?.id });
+      // Wait until session's active org matches the selected org
+      // (OrganizationSwitcher calls setActive which updates both, but there can be a race)
+      if (organization?.id && orgId !== organization.id) {
+        console.log(`[TeamDashboard] Waiting for org sync: session=${orgId}, selected=${organization.id}`);
+        return;
+      }
+
+      const token = await getToken();
       if (!token) return;
 
       // Load all leaderboards in parallel
@@ -75,8 +81,10 @@ export function TeamDashboard() {
     }
 
     loadLeaderboards();
-    // Re-fetch when organization changes (organization?.id triggers refetch with fresh token)
-  }, [getToken, period, organization?.id]);
+    // Re-fetch when organization changes
+    // orgId = session's active org, organization?.id = UI selected org
+    // Both need to match before we fetch (handles race condition after org switch)
+  }, [getToken, period, organization?.id, orgId]);
 
   // Check if all leaderboards are empty
   const allEmpty = !initialLoad && Object.values(data).every((entries) => entries.length === 0);
