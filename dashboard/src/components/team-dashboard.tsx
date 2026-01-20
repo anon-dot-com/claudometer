@@ -30,6 +30,46 @@ const leaderboards = [
   { metric: "git_lines_added", title: "Line Leaders" },
 ];
 
+// Helper to decode JWT payload (without verification - just to read claims)
+function decodeJwtPayload(token: string): { org_id?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// Helper to get token with correct org_id, retrying if needed
+async function getTokenWithOrg(
+  getToken: (options?: { skipCache?: boolean }) => Promise<string | null>,
+  expectedOrgId: string,
+  maxRetries = 5,
+  delayMs = 200
+): Promise<string | null> {
+  for (let i = 0; i < maxRetries; i++) {
+    const token = await getToken({ skipCache: true });
+    if (!token) return null;
+
+    const payload = decodeJwtPayload(token);
+    const tokenOrgId = payload?.org_id;
+
+    if (tokenOrgId === expectedOrgId) {
+      console.log(`[TeamDashboard] Token org_id matches expected (attempt ${i + 1})`);
+      return token;
+    }
+
+    console.log(`[TeamDashboard] Token org_id mismatch: token=${tokenOrgId}, expected=${expectedOrgId}, retrying in ${delayMs}ms (attempt ${i + 1}/${maxRetries})`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+
+  // Return token anyway after max retries (let backend handle it)
+  console.warn(`[TeamDashboard] Could not get token with correct org_id after ${maxRetries} retries`);
+  return await getToken({ skipCache: true });
+}
+
 export function TeamDashboard() {
   const { getToken, orgId } = useAuth();
   const { organization } = useOrganization();
@@ -51,8 +91,13 @@ export function TeamDashboard() {
         return;
       }
 
-      // Force fresh token to ensure it has the current org_id after org switch
-      const token = await getToken({ skipCache: true });
+      if (!orgId) {
+        console.log(`[TeamDashboard] No org selected`);
+        return;
+      }
+
+      // Get token and verify it has the correct org_id (retry if needed)
+      const token = await getTokenWithOrg(getToken, orgId);
       if (!token) return;
 
       // Debug: Log which org we're fetching for
