@@ -82,6 +82,8 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
       limit: 100, // Clerk's max per page
     });
 
+    console.log(`[Clerk Sync] Org ${orgId}: Clerk returned ${memberships.data.length} members (totalCount: ${memberships.totalCount})`);
+
     // Ensure org exists
     await db.query(
       `INSERT INTO organizations (id, name)
@@ -90,15 +92,24 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
       [orgId, orgName || 'Unknown Organization']
     );
 
+    let synced = 0;
+    let skipped = 0;
+
     // Create/update user and membership for each member
     for (const membership of memberships.data) {
       const userId = membership.publicUserData?.userId;
-      if (!userId) continue;
+      if (!userId) {
+        console.log(`[Clerk Sync] Skipping member - no userId. Raw data:`, JSON.stringify(membership, null, 2));
+        skipped++;
+        continue;
+      }
 
       const email = membership.publicUserData?.identifier || '';
       const firstName = membership.publicUserData?.firstName || '';
       const lastName = membership.publicUserData?.lastName || '';
       const name = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+
+      console.log(`[Clerk Sync] Processing member: ${userId} (${email || 'no email'})`);
 
       // Create/update user
       await db.query(
@@ -118,11 +129,14 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
          ON CONFLICT (user_id, org_id) DO NOTHING`,
         [userId, orgId]
       );
+
+      synced++;
     }
 
-    console.log(`Synced ${memberships.data.length} members for org ${orgId}`);
+    console.log(`[Clerk Sync] Org ${orgId}: Synced ${synced} members, skipped ${skipped}`);
   } catch (error) {
-    console.error('Failed to sync org members from Clerk:', error.message);
+    console.error('[Clerk Sync] Failed to sync org members from Clerk:', error.message);
+    console.error('[Clerk Sync] Full error:', error);
     // Don't throw - this is a best-effort sync
   }
 }
