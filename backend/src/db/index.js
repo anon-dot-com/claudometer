@@ -355,6 +355,7 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
   }
 
   // Org scope: find users who are members of this org, then sum ALL their metrics
+  // Shows all org members, including those who haven't synced yet (with 0 values)
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
@@ -365,7 +366,6 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
      LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
      WHERE m.org_id = $1
      GROUP BY u.id, u.name, u.email
-     HAVING COALESCE(SUM(d.${metric}), 0) > 0
      ORDER BY value DESC
      LIMIT $2`,
     [orgId, limit]
