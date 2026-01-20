@@ -354,17 +354,21 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
     return result.rows;
   }
 
-  // Org scope: find users who are Clerk members of this org
-  // Then sum ALL their metrics (not filtered by org - daily_metrics is source of truth)
+  // Org scope: find users who are either:
+  // 1. Clerk members of this org (from user_org_memberships - populated by syncOrgMembersFromClerk)
+  // 2. Have synced metrics for this org (from daily_metrics - fallback if Clerk sync fails)
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
       COALESCE(SUM(d.${metric}), 0) as value,
       MAX(d.updated_at) as reported_at
-     FROM user_org_memberships m
-     JOIN users u ON u.id = m.user_id
+     FROM users u
      LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
-     WHERE m.org_id = $1
+     WHERE u.id IN (
+       SELECT user_id FROM user_org_memberships WHERE org_id = $1
+       UNION
+       SELECT DISTINCT user_id FROM daily_metrics WHERE org_id = $1
+     )
      GROUP BY u.id, u.name, u.email
      ORDER BY value DESC
      LIMIT $2`,
