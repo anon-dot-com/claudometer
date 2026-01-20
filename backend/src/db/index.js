@@ -354,7 +354,8 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
     return result.rows;
   }
 
-  // Org scope: find users who are members of this org, then sum ALL their metrics
+  // Org scope: find users who are Clerk members of this org
+  // Then sum ALL their metrics (not filtered by org - daily_metrics is source of truth)
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
@@ -365,7 +366,6 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
      LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
      WHERE m.org_id = $1
      GROUP BY u.id, u.name, u.email
-     HAVING COALESCE(SUM(d.${metric}), 0) > 0
      ORDER BY value DESC
      LIMIT $2`,
     [orgId, limit]
