@@ -25,9 +25,36 @@ export async function initializeDatabase() {
     const schema = await readFile(schemaPath, 'utf-8');
     await pool.query(schema);
     console.log('Database schema initialized');
+
+    // Migrate existing org memberships from users and daily_metrics
+    await migrateOrgMemberships();
   } catch (error) {
     console.error('Failed to initialize database:', error.message);
     throw error;
+  }
+}
+
+// Migrate existing data to user_org_memberships table
+async function migrateOrgMemberships() {
+  try {
+    // Insert memberships from users.org_id (current org)
+    await db.query(`
+      INSERT INTO user_org_memberships (user_id, org_id)
+      SELECT id, org_id FROM users WHERE org_id IS NOT NULL
+      ON CONFLICT (user_id, org_id) DO NOTHING
+    `);
+
+    // Insert memberships from daily_metrics (historical orgs where user recorded data)
+    await db.query(`
+      INSERT INTO user_org_memberships (user_id, org_id)
+      SELECT DISTINCT user_id, org_id FROM daily_metrics
+      ON CONFLICT (user_id, org_id) DO NOTHING
+    `);
+
+    console.log('Org memberships migrated');
+  } catch (error) {
+    console.error('Failed to migrate org memberships:', error.message);
+    // Don't throw - this is a best-effort migration
   }
 }
 
@@ -52,6 +79,17 @@ export async function findOrCreateUser(id, email, name, orgId) {
      RETURNING *`,
     [id, email, name, orgId]
   );
+
+  // Also add org membership (if not already exists)
+  if (orgId) {
+    await db.query(
+      `INSERT INTO user_org_memberships (user_id, org_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, org_id) DO NOTHING`,
+      [id, orgId]
+    );
+  }
+
   return result.rows[0];
 }
 
@@ -247,15 +285,16 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
     return result.rows;
   }
 
-  // Org scope: filter by daily_metrics.org_id to show metrics recorded for this org
+  // Org scope: find users who are members of this org, then sum ALL their metrics
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
       COALESCE(SUM(d.${metric}), 0) as value,
       MAX(d.updated_at) as reported_at
-     FROM daily_metrics d
-     JOIN users u ON u.id = d.user_id
-     WHERE d.org_id = $1 AND ${dateFilter}
+     FROM user_org_memberships m
+     JOIN users u ON u.id = m.user_id
+     LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
+     WHERE m.org_id = $1
      GROUP BY u.id, u.name, u.email
      HAVING COALESCE(SUM(d.${metric}), 0) > 0
      ORDER BY value DESC
