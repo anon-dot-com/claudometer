@@ -69,6 +69,8 @@ router.get('/leaderboard', async (req, res) => {
     const { orgId, orgName } = req.auth;
     const { metric = 'claude_tokens', limit = 10, period = 'all', scope = 'org' } = req.query;
 
+    console.log(`[Leaderboard] Querying for org: ${orgId} (${orgName}), metric: ${metric}, period: ${period}`);
+
     // Sync all org members from Clerk before querying
     // This ensures we have records for all team members, not just those who have synced
     if (scope === 'org' && orgId) {
