@@ -11,9 +11,17 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,                    -- Clerk user ID
   email TEXT NOT NULL UNIQUE,
   name TEXT,
-  org_id TEXT REFERENCES organizations(id),
+  org_id TEXT REFERENCES organizations(id),  -- Last synced org (for backwards compatibility)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User org memberships (tracks which orgs a user belongs to)
+CREATE TABLE IF NOT EXISTS user_org_memberships (
+  user_id TEXT REFERENCES users(id) NOT NULL,
+  org_id TEXT REFERENCES organizations(id) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id, org_id)
 );
 
 -- Metrics snapshots (raw data from CLI reports)
@@ -109,3 +117,6 @@ CREATE INDEX IF NOT EXISTS idx_daily_metrics_org_date
 
 CREATE INDEX IF NOT EXISTS idx_weekly_metrics_org_week
   ON weekly_metrics(org_id, week_start DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_org_memberships_org
+  ON user_org_memberships(org_id);
