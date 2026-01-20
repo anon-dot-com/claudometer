@@ -73,14 +73,29 @@ export async function ensureOrgMembership(userId, orgId) {
 // Sync all org members from Clerk to database
 // This ensures we have records for all org members, even if they haven't synced metrics yet
 export async function syncOrgMembersFromClerk(orgId, orgName) {
-  if (!orgId) return;
+  console.log(`[Clerk Sync] Starting sync for org ${orgId} (${orgName})`);
+  if (!orgId) {
+    console.log(`[Clerk Sync] No orgId provided, skipping`);
+    return;
+  }
 
   try {
     // Fetch all org members from Clerk
+    const hasSecretKey = !!process.env.CLERK_SECRET_KEY;
+    const secretKeyPrefix = process.env.CLERK_SECRET_KEY?.substring(0, 10) || 'NOT SET';
+    console.log(`[Clerk Sync] Calling Clerk API for org ${orgId}... (secretKey configured: ${hasSecretKey}, prefix: ${secretKeyPrefix})`);
+
     const memberships = await clerk.organizations.getOrganizationMembershipList({
       organizationId: orgId,
       limit: 100, // Clerk's max per page
     });
+
+    console.log(`[Clerk Sync] Org ${orgId}: Clerk returned ${memberships.data?.length ?? 'undefined'} members (totalCount: ${memberships.totalCount})`);
+
+    // Log the first member's structure to debug data format
+    if (memberships.data?.length > 0) {
+      console.log(`[Clerk Sync] First member raw structure:`, JSON.stringify(memberships.data[0], null, 2));
+    }
 
     // Ensure org exists
     await db.query(
@@ -90,15 +105,24 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
       [orgId, orgName || 'Unknown Organization']
     );
 
+    let synced = 0;
+    let skipped = 0;
+
     // Create/update user and membership for each member
     for (const membership of memberships.data) {
       const userId = membership.publicUserData?.userId;
-      if (!userId) continue;
+      if (!userId) {
+        console.log(`[Clerk Sync] Skipping member - no userId. Raw data:`, JSON.stringify(membership, null, 2));
+        skipped++;
+        continue;
+      }
 
       const email = membership.publicUserData?.identifier || '';
       const firstName = membership.publicUserData?.firstName || '';
       const lastName = membership.publicUserData?.lastName || '';
       const name = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+
+      console.log(`[Clerk Sync] Processing member: ${userId} (${email || 'no email'})`);
 
       // Create/update user
       await db.query(
@@ -118,11 +142,14 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
          ON CONFLICT (user_id, org_id) DO NOTHING`,
         [userId, orgId]
       );
+
+      synced++;
     }
 
-    console.log(`Synced ${memberships.data.length} members for org ${orgId}`);
+    console.log(`[Clerk Sync] Org ${orgId}: Synced ${synced} members, skipped ${skipped}`);
   } catch (error) {
-    console.error('Failed to sync org members from Clerk:', error.message);
+    console.error('[Clerk Sync] Failed to sync org members from Clerk:', error.message);
+    console.error('[Clerk Sync] Full error:', error);
     // Don't throw - this is a best-effort sync
   }
 }
@@ -354,17 +381,24 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
     return result.rows;
   }
 
-  // Org scope: find users who are Clerk members of this org
-  // Then sum ALL their metrics (not filtered by org - daily_metrics is source of truth)
+  // Org scope: find users who are either:
+  // 1. Clerk members of this org (from user_org_memberships - populated by syncOrgMembersFromClerk)
+  // 2. Have synced metrics for this org (from daily_metrics - fallback if Clerk sync fails)
+  // 3. Have current org_id set to this org (from users table - covers most common case)
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
       COALESCE(SUM(d.${metric}), 0) as value,
       MAX(d.updated_at) as reported_at
-     FROM user_org_memberships m
-     JOIN users u ON u.id = m.user_id
+     FROM users u
      LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
-     WHERE m.org_id = $1
+     WHERE u.id IN (
+       SELECT user_id FROM user_org_memberships WHERE org_id = $1
+       UNION
+       SELECT DISTINCT user_id FROM daily_metrics WHERE org_id = $1
+       UNION
+       SELECT id FROM users WHERE org_id = $1
+     )
      GROUP BY u.id, u.name, u.email
      ORDER BY value DESC
      LIMIT $2`,
