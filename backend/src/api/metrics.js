@@ -9,6 +9,7 @@ import {
   getOrgLeaderboard,
   getOrgDailyActivity,
   getUserDailyActivity,
+  ensureOrgMembership,
 } from '../db/index.js';
 
 const router = Router();
@@ -65,8 +66,15 @@ router.get('/me', async (req, res) => {
 // GET /api/metrics/leaderboard - Get leaderboard (org or global based on scope param)
 router.get('/leaderboard', async (req, res) => {
   try {
-    const { orgId } = req.auth;
+    const { userId, email, name, orgId, orgName } = req.auth;
     const { metric = 'claude_tokens', limit = 10, period = 'all', scope = 'org' } = req.query;
+
+    // Ensure current user's org membership exists (even if they haven't synced yet)
+    // This creates the user, org, and membership records if they don't exist
+    if (scope === 'org' && userId && orgId) {
+      await findOrCreateOrg(orgId, orgName);
+      await findOrCreateUser(userId, email, name, orgId);
+    }
 
     const leaderboard = await getOrgLeaderboard(orgId, metric, parseInt(limit), period, scope);
 

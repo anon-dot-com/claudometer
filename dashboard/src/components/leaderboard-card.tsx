@@ -20,7 +20,7 @@ interface LeaderboardCardProps {
 
 // Map metric to display unit
 const metricUnits: Record<string, string> = {
-  claude_output_tokens: "tokens",
+  claude_tokens: "tokens",
   claude_messages: "messages",
   git_commits: "commits",
   git_lines_added: "lines",
