@@ -11,9 +11,17 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,                    -- Clerk user ID
   email TEXT NOT NULL UNIQUE,
   name TEXT,
-  org_id TEXT REFERENCES organizations(id),
+  org_id TEXT REFERENCES organizations(id),  -- Last synced org (for backwards compatibility)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User org memberships (tracks which orgs a user belongs to)
+CREATE TABLE IF NOT EXISTS user_org_memberships (
+  user_id TEXT REFERENCES users(id) NOT NULL,
+  org_id TEXT REFERENCES organizations(id) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id, org_id)
 );
 
 -- Metrics snapshots (raw data from CLI reports)
@@ -22,6 +30,7 @@ CREATE TABLE IF NOT EXISTS metrics_snapshots (
   user_id TEXT REFERENCES users(id) NOT NULL,
   org_id TEXT REFERENCES organizations(id) NOT NULL,
   reported_at TIMESTAMPTZ NOT NULL,
+  stats_cache_updated_at TIMESTAMPTZ,          -- When stats-cache.json was last updated by Claude
 
   -- Claude metrics
   claude_sessions INTEGER DEFAULT 0,
@@ -55,14 +64,13 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   -- Claude metrics (deltas for the day)
   claude_sessions INTEGER DEFAULT 0,
   claude_messages INTEGER DEFAULT 0,
-  claude_input_tokens BIGINT DEFAULT 0,
-  claude_output_tokens BIGINT DEFAULT 0,
+  claude_tokens BIGINT DEFAULT 0,          -- Combined tokens (input+output not tracked separately daily)
   claude_tool_calls INTEGER DEFAULT 0,
 
   -- Git metrics (deltas for the day)
   git_commits INTEGER DEFAULT 0,
   git_lines_added INTEGER DEFAULT 0,
-  git_prs INTEGER DEFAULT 0,
+  git_lines_deleted INTEGER DEFAULT 0,
 
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -80,13 +88,12 @@ CREATE TABLE IF NOT EXISTS weekly_metrics (
   -- Totals for the week
   claude_sessions INTEGER DEFAULT 0,
   claude_messages INTEGER DEFAULT 0,
-  claude_input_tokens BIGINT DEFAULT 0,
-  claude_output_tokens BIGINT DEFAULT 0,
+  claude_tokens BIGINT DEFAULT 0,          -- Combined tokens (input+output not tracked separately daily)
   claude_tool_calls INTEGER DEFAULT 0,
 
   git_commits INTEGER DEFAULT 0,
   git_lines_added INTEGER DEFAULT 0,
-  git_prs INTEGER DEFAULT 0,
+  git_lines_deleted INTEGER DEFAULT 0,
   git_repos_contributed INTEGER DEFAULT 0,
 
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -125,6 +132,9 @@ CREATE INDEX IF NOT EXISTS idx_daily_metrics_org_date
 
 CREATE INDEX IF NOT EXISTS idx_weekly_metrics_org_week
   ON weekly_metrics(org_id, week_start DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_org_memberships_org
+  ON user_org_memberships(org_id);
 
 CREATE INDEX IF NOT EXISTS idx_join_requests_org_status
   ON join_requests(org_id, status);

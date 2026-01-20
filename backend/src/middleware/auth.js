@@ -1,7 +1,7 @@
 import { createClerkClient, verifyToken } from '@clerk/backend';
 import jwt from 'jsonwebtoken';
 
-const clerk = createClerkClient({
+export const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
 });
 
@@ -58,20 +58,25 @@ export async function authenticateRequest(req, res, next) {
     // Get user details
     const user = await clerk.users.getUser(payload.sub);
 
-    // Get user's organization memberships
-    const memberships = await clerk.users.getOrganizationMembershipList({
-      userId: payload.sub,
-    });
+    // Clerk token includes org_id if user has an active organization
+    // Use that instead of blindly taking the first membership
+    let orgId = payload.org_id;
 
-    // Use the first org or the one specified in the token
-    const orgMembership = memberships.data[0];
+    if (!orgId) {
+      // No active org in token, fall back to first membership
+      const memberships = await clerk.users.getOrganizationMembershipList({
+        userId: payload.sub,
+      });
 
-    if (!orgMembership) {
-      return res.status(403).json({ error: 'User must belong to an organization' });
+      const orgMembership = memberships.data[0];
+      if (!orgMembership) {
+        return res.status(403).json({ error: 'User must belong to an organization' });
+      }
+      orgId = orgMembership.organization.id;
     }
 
     const org = await clerk.organizations.getOrganization({
-      organizationId: orgMembership.organization.id,
+      organizationId: orgId,
     });
 
     // Attach to request

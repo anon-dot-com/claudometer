@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Force redeploy
 export const metadata: Metadata = {
   title: "Claudometer",
   description: "Measure engineering productivity across Claude and Git",

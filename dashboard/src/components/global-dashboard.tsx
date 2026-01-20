@@ -1,8 +1,7 @@
 "use client";
 
-import { useAuth, useOrganization } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { LeaderboardCard } from "./leaderboard-card";
 
 interface LeaderboardEntry {
@@ -30,42 +29,24 @@ const leaderboards = [
   { metric: "git_lines_added", title: "Line Leaders" },
 ];
 
-export function TeamDashboard() {
+export function GlobalDashboard() {
   const { getToken } = useAuth();
-  const { organization } = useOrganization();
   const [period, setPeriod] = useState<Period>("week");
   const [data, setData] = useState<Record<string, LeaderboardEntry[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
-    // Reset data when organization changes
-    setData({});
-    setInitialLoad(true);
-
     async function loadLeaderboards() {
-      // Use the organization from useOrganization() which reflects the UI selection
-      const selectedOrgId = organization?.id;
-      const selectedOrgName = organization?.name;
-
-      if (!selectedOrgId) {
-        console.log(`[TeamDashboard] No org selected`);
-        return;
-      }
-
       const token = await getToken();
       if (!token) return;
 
-      // Debug: Log which org we're fetching for
-      console.log(`[TeamDashboard] Fetching leaderboards for org: ${selectedOrgId} (${selectedOrgName}), period: ${period}`);
-
       // Load all leaderboards in parallel
-      // Pass orgId explicitly as query param since Clerk token may not include it
       const loadPromises = leaderboards.map(async ({ metric }) => {
         setLoading((prev) => ({ ...prev, [metric]: true }));
         try {
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/leaderboard?metric=${metric}&period=${period}&limit=10&orgId=${selectedOrgId}`,
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/leaderboard?metric=${metric}&period=${period}&limit=10&scope=global`,
             {
               headers: { Authorization: `Bearer ${token}` },
             }
@@ -73,7 +54,6 @@ export function TeamDashboard() {
 
           if (res.ok) {
             const result = await res.json();
-            console.log(`[TeamDashboard] ${metric} response:`, result.leaderboard?.length || 0, 'entries');
             setData((prev) => ({ ...prev, [metric]: result.leaderboard || [] }));
           }
         } catch (err) {
@@ -88,7 +68,7 @@ export function TeamDashboard() {
     }
 
     loadLeaderboards();
-  }, [getToken, period, organization?.id]);
+  }, [getToken, period]);
 
   // Check if all leaderboards are empty
   const allEmpty = !initialLoad && Object.values(data).every((entries) => entries.length === 0);
@@ -99,9 +79,9 @@ export function TeamDashboard() {
       {/* Header with title and period selector */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-white">Team Claudometer</h2>
+          <h2 className="text-2xl font-bold text-white">Global Leaderboard</h2>
           <p className="text-zinc-400 mt-1">
-            See how your team is performing across key metrics
+            See how you rank against all Claudometer users
           </p>
         </div>
         <div className="flex gap-1 bg-zinc-900 rounded-lg p-1">
@@ -124,24 +104,15 @@ export function TeamDashboard() {
       {/* Empty state */}
       {allEmpty && !isLoading ? (
         <div className="bg-zinc-900 rounded-lg p-12 text-center">
-          <div className="text-5xl mb-4">👥</div>
-          <h3 className="text-xl font-semibold text-white mb-2">No team data yet</h3>
+          <div className="text-5xl mb-4">🌍</div>
+          <h3 className="text-xl font-semibold text-white mb-2">No global data yet</h3>
           <p className="text-zinc-400 mb-6 max-w-md mx-auto">
-            Invite your team members and have them install the Claudometer CLI to see leaderboards.
+            Start syncing your metrics to appear on the global leaderboard.
           </p>
-          <div className="bg-zinc-800 px-4 py-3 rounded-lg inline-block mb-6">
+          <div className="bg-zinc-800 px-4 py-3 rounded-lg inline-block">
             <code className="text-sm text-green-400 font-mono">
-              npm i -g claudometer && claudometer login && claudometer collect
+              claudometer collect
             </code>
-          </div>
-          <div>
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
-            >
-              Invite team members
-              <span aria-hidden="true">→</span>
-            </Link>
           </div>
         </div>
       ) : (
