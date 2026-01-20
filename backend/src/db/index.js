@@ -73,16 +73,26 @@ export async function ensureOrgMembership(userId, orgId) {
 // Sync all org members from Clerk to database
 // This ensures we have records for all org members, even if they haven't synced metrics yet
 export async function syncOrgMembersFromClerk(orgId, orgName) {
-  if (!orgId) return;
+  console.log(`[Clerk Sync] Starting sync for org ${orgId} (${orgName})`);
+  if (!orgId) {
+    console.log(`[Clerk Sync] No orgId provided, skipping`);
+    return;
+  }
 
   try {
     // Fetch all org members from Clerk
+    console.log(`[Clerk Sync] Calling Clerk API for org ${orgId}...`);
     const memberships = await clerk.organizations.getOrganizationMembershipList({
       organizationId: orgId,
       limit: 100, // Clerk's max per page
     });
 
-    console.log(`[Clerk Sync] Org ${orgId}: Clerk returned ${memberships.data.length} members (totalCount: ${memberships.totalCount})`);
+    console.log(`[Clerk Sync] Org ${orgId}: Clerk returned ${memberships.data?.length ?? 'undefined'} members (totalCount: ${memberships.totalCount})`);
+
+    // Log the first member's structure to debug data format
+    if (memberships.data?.length > 0) {
+      console.log(`[Clerk Sync] First member raw structure:`, JSON.stringify(memberships.data[0], null, 2));
+    }
 
     // Ensure org exists
     await db.query(
