@@ -51,7 +51,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Start server
+// Start server (force redeploy)
 async function start() {
   try {
     // Initialize database
