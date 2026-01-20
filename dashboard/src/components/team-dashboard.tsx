@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useOrganization } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LeaderboardCard } from "./leaderboard-card";
@@ -32,12 +32,17 @@ const leaderboards = [
 
 export function TeamDashboard() {
   const { getToken } = useAuth();
+  const { organization } = useOrganization();
   const [period, setPeriod] = useState<Period>("week");
   const [data, setData] = useState<Record<string, LeaderboardEntry[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
+    // Reset data when organization changes
+    setData({});
+    setInitialLoad(true);
+
     async function loadLeaderboards() {
       const token = await getToken();
       if (!token) return;
@@ -69,7 +74,8 @@ export function TeamDashboard() {
     }
 
     loadLeaderboards();
-  }, [getToken, period]);
+    // Re-fetch when organization changes (organization?.id triggers refetch with fresh token)
+  }, [getToken, period, organization?.id]);
 
   // Check if all leaderboards are empty
   const allEmpty = !initialLoad && Object.values(data).every((entries) => entries.length === 0);
