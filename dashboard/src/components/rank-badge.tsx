@@ -7,7 +7,7 @@ interface RankBadgeProps {
 
 // Fun titles for #1 in each category
 const funTitles: Record<string, string> = {
-  claude_output_tokens: "Token Titan",
+  claude_tokens: "Token Titan",
   claude_messages: "Conversation Commander",
   git_commits: "Commit Champion",
   git_lines_added: "Line Legend",

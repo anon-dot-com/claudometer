@@ -58,6 +58,17 @@ async function migrateOrgMemberships() {
   }
 }
 
+// Ensure user org membership exists (for users who haven't synced yet)
+export async function ensureOrgMembership(userId, orgId) {
+  if (!userId || !orgId) return;
+  await db.query(
+    `INSERT INTO user_org_memberships (user_id, org_id)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id, org_id) DO NOTHING`,
+    [userId, orgId]
+  );
+}
+
 // Organization queries
 export async function findOrCreateOrg(id, name) {
   const result = await db.query(

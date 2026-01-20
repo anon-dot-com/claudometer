@@ -21,7 +21,7 @@ export async function getMyMetrics(token: string) {
   return fetchWithAuth('/api/metrics/me', token);
 }
 
-export async function getLeaderboard(token: string, metric = 'claude_output_tokens') {
+export async function getLeaderboard(token: string, metric = 'claude_tokens') {
   return fetchWithAuth(`/api/metrics/leaderboard?metric=${metric}`, token);
 }
 
