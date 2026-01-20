@@ -82,6 +82,8 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
       limit: 100,
     });
 
+    console.log(`[Clerk Sync] ${orgName} (${orgId}): Clerk returned ${memberships.data.length} members (totalCount: ${memberships.totalCount})`);
+
     // Ensure org exists
     await db.query(
       `INSERT INTO organizations (id, name)
@@ -91,11 +93,17 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
     );
 
     let synced = 0;
+    let skipped = 0;
+    const syncedUserIds = [];
 
     // Create/update user and membership for each member
     for (const membership of memberships.data) {
       const userId = membership.publicUserData?.userId;
-      if (!userId) continue;
+      if (!userId) {
+        skipped++;
+        console.log(`[Clerk Sync] Skipping member with no userId:`, JSON.stringify(membership.publicUserData));
+        continue;
+      }
 
       const email = membership.publicUserData?.identifier || '';
       const firstName = membership.publicUserData?.firstName || '';
@@ -122,9 +130,18 @@ export async function syncOrgMembersFromClerk(orgId, orgName) {
       );
 
       synced++;
+      syncedUserIds.push(userId);
     }
 
-    console.log(`[Clerk Sync] ${orgName}: synced ${synced}/${memberships.totalCount} members`);
+    console.log(`[Clerk Sync] ${orgName}: synced ${synced}/${memberships.totalCount} members, skipped ${skipped}`);
+    console.log(`[Clerk Sync] ${orgName}: user IDs synced: ${syncedUserIds.join(', ')}`);
+
+    // Verify memberships in database
+    const dbCheck = await db.query(
+      `SELECT COUNT(*) as count FROM user_org_memberships WHERE org_id = $1`,
+      [orgId]
+    );
+    console.log(`[Clerk Sync] ${orgName}: ${dbCheck.rows[0].count} memberships in database for this org`);
   } catch (error) {
     console.error('[Clerk Sync] Failed:', error.message);
   }
@@ -361,6 +378,22 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
   // 1. Clerk members of this org (from user_org_memberships - populated by syncOrgMembersFromClerk)
   // 2. Have synced metrics for this org (from daily_metrics - fallback if Clerk sync fails)
   // 3. Have current org_id set to this org (from users table - covers most common case)
+
+  // Debug: check each source
+  const membershipCount = await db.query(
+    `SELECT COUNT(*) as count FROM user_org_memberships WHERE org_id = $1`,
+    [orgId]
+  );
+  const metricsCount = await db.query(
+    `SELECT COUNT(DISTINCT user_id) as count FROM daily_metrics WHERE org_id = $1`,
+    [orgId]
+  );
+  const usersCount = await db.query(
+    `SELECT COUNT(*) as count FROM users WHERE org_id = $1`,
+    [orgId]
+  );
+  console.log(`[Leaderboard] User sources for ${orgId}: memberships=${membershipCount.rows[0].count}, metrics=${metricsCount.rows[0].count}, users=${usersCount.rows[0].count}`);
+
   const result = await db.query(
     `SELECT
       u.id, u.name, u.email,
@@ -380,6 +413,8 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
      LIMIT $2`,
     [orgId, limit]
   );
+
+  console.log(`[Leaderboard] Query returned ${result.rows.length} users for org ${orgId}`);
   return result.rows;
 }
 
