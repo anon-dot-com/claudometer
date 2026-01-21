@@ -66,8 +66,8 @@ export function Leaderboard({ period: externalPeriod }: LeaderboardProps) {
 
   const periodLabels: Record<Period, string> = {
     today: "Today",
-    week: "This Week",
-    month: "This Month",
+    week: "Last 7 Days",
+    month: "Last 30 Days",
     all: "All Time",
   };
 
@@ -82,8 +82,8 @@ export function Leaderboard({ period: externalPeriod }: LeaderboardProps) {
             className="bg-zinc-800 text-sm text-zinc-300 rounded px-2 py-1 border border-zinc-700"
           >
             <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">Last 30 Days</option>
             <option value="all">All Time</option>
           </select>
           <select

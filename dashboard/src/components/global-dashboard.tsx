@@ -16,8 +16,8 @@ type Period = "today" | "week" | "month" | "all";
 
 const periodLabels: Record<Period, string> = {
   today: "Today",
-  week: "This Week",
-  month: "This Month",
+  week: "Last 7 Days",
+  month: "Last 30 Days",
   all: "All Time",
 };
 
