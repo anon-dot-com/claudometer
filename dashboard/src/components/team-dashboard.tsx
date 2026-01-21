@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth, useOrganization } from "@clerk/nextjs";
+import { useAuth, useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LeaderboardCard } from "./leaderboard-card";
@@ -33,10 +33,21 @@ const leaderboards = [
 export function TeamDashboard() {
   const { getToken } = useAuth();
   const { organization } = useOrganization();
+  const { userMemberships, setActive } = useOrganizationList({
+    userMemberships: { infinite: true },
+  });
   const [period, setPeriod] = useState<Period>("week");
   const [data, setData] = useState<Record<string, LeaderboardEntry[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [initialLoad, setInitialLoad] = useState(true);
+
+  // Auto-select first organization if none is selected
+  useEffect(() => {
+    if (!organization && userMemberships?.data && userMemberships.data.length > 0 && setActive) {
+      const firstOrg = userMemberships.data[0].organization;
+      setActive({ organization: firstOrg.id });
+    }
+  }, [organization, userMemberships?.data, setActive]);
 
   useEffect(() => {
     // Reset data when organization changes

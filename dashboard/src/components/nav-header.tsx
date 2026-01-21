@@ -132,6 +132,7 @@ export function NavHeader() {
                 appearance={clerkDarkAppearance}
                 afterCreateOrganizationUrl="/team"
                 afterSelectOrganizationUrl="/team"
+                hidePersonal={true}
               />
             )}
           </div>
