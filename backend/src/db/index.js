@@ -442,6 +442,16 @@ export async function getUserMetricsByPeriod(userId, period = 'all') {
       dateFilter = `date >= ${localDate} - INTERVAL '30 days'`;
   }
 
+  // First check if user has any data at all
+  const countResult = await db.query(
+    `SELECT COUNT(*) as count FROM daily_metrics WHERE user_id = $1 AND ${dateFilter}`,
+    [userId]
+  );
+
+  if (parseInt(countResult.rows[0].count) === 0) {
+    return null;
+  }
+
   const result = await db.query(
     `SELECT
       COALESCE(SUM(claude_sessions), 0) as claude_sessions,
