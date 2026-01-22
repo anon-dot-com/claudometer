@@ -115,7 +115,7 @@ export function Dashboard() {
           <path strokeWidth="2" d="M12 16v-4M12 8h.01" />
         </svg>
         <p className="text-xs text-zinc-500">
-          Claude updates its usage stats on its own schedule. Metrics may sometimes take a day or more to appear — this is normal and not an error.
+          Token counts only include input/output tokens, not cache read/creation tokens. Claude updates its usage stats on its own schedule — metrics may sometimes take a day or more to appear.
         </p>
       </div>
 

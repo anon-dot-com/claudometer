@@ -442,9 +442,11 @@ export async function getUserMetricsByPeriod(userId, period = 'all') {
       dateFilter = `date >= ${localDate} - INTERVAL '30 days'`;
   }
 
-  // First check if user has any data at all
+  // First check if user has any data at all (ignoring date filter)
+  // This ensures we show the dashboard with zeros rather than the empty state
+  // if the user has historical data but none for the selected period
   const countResult = await db.query(
-    `SELECT COUNT(*) as count FROM daily_metrics WHERE user_id = $1 AND ${dateFilter}`,
+    `SELECT COUNT(*) as count FROM daily_metrics WHERE user_id = $1`,
     [userId]
   );
 
