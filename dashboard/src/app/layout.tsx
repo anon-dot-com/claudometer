@@ -13,10 +13,28 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Force redeploy
 export const metadata: Metadata = {
   title: "Claudometer",
-  description: "Measure engineering productivity across Claude and Git",
+  description: "Team leaderboards for Claude Code",
+  metadataBase: new URL("https://claudometer.com"),
+  openGraph: {
+    title: "Claudometer",
+    description: "Team leaderboards for Claude Code",
+    images: [
+      {
+        url: "/og-image-combined.png",
+        width: 1200,
+        height: 630,
+        alt: "Claudometer - Team leaderboards for Claude Code",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Claudometer",
+    description: "Team leaderboards for Claude Code",
+    images: ["/og-image-combined.png"],
+  },
 };
 
 export default function RootLayout({
