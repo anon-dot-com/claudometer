@@ -48,7 +48,9 @@ export function SpeedometerGauge({ value, maxValue, label }: SpeedometerGaugePro
 
   // Format value for display
   const formatValue = (val: number) => {
-    if (val >= 1000000) {
+    if (val >= 1000000000) {
+      return `${(val / 1000000000).toFixed(1)}B`;
+    } else if (val >= 1000000) {
       return `${(val / 1000000).toFixed(1)}M`;
     } else if (val >= 1000) {
       return `${(val / 1000).toFixed(1)}K`;
