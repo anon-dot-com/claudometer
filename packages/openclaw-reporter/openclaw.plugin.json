@@ -1,0 +1,39 @@
+{
+  "id": "claudometer",
+  "name": "Claudometer Reporter",
+  "description": "Report usage metrics to Claudometer for team visibility and leaderboards",
+  "version": "1.0.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "apiUrl": {
+        "type": "string",
+        "default": "https://claudometer.ai",
+        "description": "Claudometer API URL",
+        "ui:label": "API URL"
+      },
+      "deviceToken": {
+        "type": "string",
+        "description": "Device token for authentication (obtain via 'claudometer link' command)",
+        "ui:label": "Device Token",
+        "ui:sensitive": true
+      },
+      "reportIntervalMinutes": {
+        "type": "number",
+        "default": 30,
+        "minimum": 5,
+        "maximum": 1440,
+        "description": "Minutes between automatic reports",
+        "ui:label": "Report Interval (minutes)"
+      },
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable automatic reporting",
+        "ui:label": "Enabled"
+      }
+    },
+    "required": ["deviceToken"]
+  },
+  "skills": ["skills/claudometer"]
+}

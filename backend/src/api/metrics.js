@@ -10,6 +10,9 @@ import {
   getOrgDailyActivity,
   getUserDailyActivity,
   syncOrgMembersFromClerk,
+  validateDeviceToken,
+  saveExternalMetrics,
+  getUserMetricsBySource,
 } from '../db/index.js';
 import { clerk } from '../middleware/auth.js';
 
@@ -49,6 +52,46 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Failed to save metrics:', error);
     res.status(500).json({ error: 'Failed to save metrics' });
+  }
+});
+
+// POST /api/metrics/external - Receive metrics from external tools (OpenClaw, etc.)
+// Uses device token authentication instead of Clerk
+router.post('/external', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing authorization header' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Validate device token
+    const device = await validateDeviceToken(token);
+    if (!device) {
+      return res.status(401).json({ error: 'Invalid or revoked device token' });
+    }
+
+    const metrics = req.body;
+    const source = device.source || 'openclaw';
+
+    // Ensure org and user exist
+    await findOrCreateOrg(device.org_id, device.org_name);
+    await findOrCreateUser(device.user_id, device.email, device.name, device.org_id);
+
+    // Save the external metrics
+    const snapshot = await saveExternalMetrics(device.user_id, device.org_id, source, metrics);
+
+    res.json({
+      success: true,
+      snapshotId: snapshot.id,
+      source,
+      message: 'External metrics received',
+    });
+  } catch (error) {
+    console.error('Failed to save external metrics:', error);
+    res.status(500).json({ error: 'Failed to save external metrics' });
   }
 });
 
@@ -150,6 +193,43 @@ router.get('/my-activity', async (req, res) => {
   } catch (error) {
     console.error('Failed to get user activity:', error);
     res.status(500).json({ error: 'Failed to get user activity' });
+  }
+});
+
+// GET /api/metrics/by-source - Get current user's metrics broken down by source
+router.get('/by-source', async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { period = 'all' } = req.query;
+
+    const bySource = await getUserMetricsBySource(userId, period);
+
+    // Transform into a more usable format
+    const sources = {};
+    let totals = {
+      claude_sessions: 0,
+      claude_messages: 0,
+      claude_tokens: 0,
+      claude_tool_calls: 0,
+    };
+
+    for (const row of bySource) {
+      sources[row.source] = {
+        claude_sessions: parseInt(row.claude_sessions) || 0,
+        claude_messages: parseInt(row.claude_messages) || 0,
+        claude_tokens: parseInt(row.claude_tokens) || 0,
+        claude_tool_calls: parseInt(row.claude_tool_calls) || 0,
+      };
+      totals.claude_sessions += sources[row.source].claude_sessions;
+      totals.claude_messages += sources[row.source].claude_messages;
+      totals.claude_tokens += sources[row.source].claude_tokens;
+      totals.claude_tool_calls += sources[row.source].claude_tool_calls;
+    }
+
+    res.json({ sources, totals, period });
+  } catch (error) {
+    console.error('Failed to get metrics by source:', error);
+    res.status(500).json({ error: 'Failed to get metrics by source' });
   }
 });
 

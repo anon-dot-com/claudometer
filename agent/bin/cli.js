@@ -9,6 +9,7 @@ import { statusCommand } from '../src/commands/status.js';
 import { stopCommand } from '../src/commands/stop.js';
 import { collectCommand } from '../src/commands/collect.js';
 import { setupCommand } from '../src/commands/setup.js';
+import { linkCommand } from '../src/commands/link.js';
 
 program
   .name('claudometer')
@@ -53,5 +54,13 @@ program
   .option('-i, --interval <minutes>', 'Sync interval in minutes', '30')
   .option('--uninstall', 'Remove the auto-sync daemon')
   .action(setupCommand);
+
+program
+  .command('link')
+  .description('Link external tools (OpenClaw, etc.) to your account')
+  .option('-g, --generate', 'Generate a new linking code')
+  .option('-l, --list', 'List linked devices')
+  .option('-r, --revoke <id>', 'Revoke a device token')
+  .action(linkCommand);
 
 program.parse();

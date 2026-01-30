@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS metrics_snapshots (
   org_id TEXT REFERENCES organizations(id) NOT NULL,
   reported_at TIMESTAMPTZ NOT NULL,
   stats_cache_updated_at TIMESTAMPTZ,          -- When stats-cache.json was last updated by Claude
+  source TEXT DEFAULT 'claude_code',           -- Source: claude_code, openclaw, cursor, etc.
 
   -- Claude metrics
   claude_sessions INTEGER DEFAULT 0,
@@ -60,6 +61,7 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   user_id TEXT REFERENCES users(id) NOT NULL,
   org_id TEXT REFERENCES organizations(id) NOT NULL,
   date DATE NOT NULL,
+  source TEXT DEFAULT 'claude_code',       -- Source: claude_code, openclaw, cursor, etc.
 
   -- Claude metrics (deltas for the day)
   claude_sessions INTEGER DEFAULT 0,
@@ -75,7 +77,7 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
 
-  UNIQUE(user_id, date)
+  UNIQUE(user_id, date, source)            -- Allow multiple sources per user per day
 );
 
 -- Weekly aggregates
@@ -117,6 +119,29 @@ CREATE TABLE IF NOT EXISTS join_requests (
   UNIQUE(user_id, org_id)
 );
 
+-- Device tokens (for external tools like OpenClaw to authenticate)
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id TEXT PRIMARY KEY,                      -- Token ID (clm_...)
+  user_id TEXT REFERENCES users(id) NOT NULL,
+  org_id TEXT REFERENCES organizations(id) NOT NULL,
+  device_name TEXT NOT NULL,                -- e.g., "OpenClaw on MacBook Pro"
+  source TEXT NOT NULL DEFAULT 'openclaw',  -- Tool type: openclaw, cursor, etc.
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  revoked_at TIMESTAMPTZ                    -- NULL if active, timestamp if revoked
+);
+
+-- Linking codes (temporary codes for pairing devices)
+CREATE TABLE IF NOT EXISTS linking_codes (
+  code TEXT PRIMARY KEY,                    -- 6-character code
+  user_id TEXT REFERENCES users(id) NOT NULL,
+  org_id TEXT REFERENCES organizations(id) NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,                      -- NULL if unused
+  device_token_id TEXT REFERENCES device_tokens(id),  -- Set when code is used
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_metrics_snapshots_user_reported
   ON metrics_snapshots(user_id, reported_at DESC);
@@ -138,3 +163,12 @@ CREATE INDEX IF NOT EXISTS idx_user_org_memberships_org
 
 CREATE INDEX IF NOT EXISTS idx_join_requests_org_status
   ON join_requests(org_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user
+  ON device_tokens(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_linking_codes_expires
+  ON linking_codes(expires_at) WHERE used_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_daily_metrics_source
+  ON daily_metrics(source);

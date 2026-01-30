@@ -560,4 +560,246 @@ export async function getOrgById(orgId) {
   return result.rows[0];
 }
 
+// Device token functions for external tool authentication
+
+// Generate a random token ID
+function generateTokenId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = 'clm_';
+  for (let i = 0; i < 32; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Generate a 6-character linking code
+function generateLinkingCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluded ambiguous chars: 0, O, I, 1
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Create a linking code for device pairing
+export async function createLinkingCode(userId, orgId) {
+  const code = generateLinkingCode();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await db.query(
+    `INSERT INTO linking_codes (code, user_id, org_id, expires_at)
+     VALUES ($1, $2, $3, $4)`,
+    [code, userId, orgId, expiresAt]
+  );
+
+  return { code, expiresAt };
+}
+
+// Validate and consume a linking code, creating a device token
+export async function consumeLinkingCode(code, deviceName, source = 'openclaw') {
+  // Find valid, unused code
+  const codeResult = await db.query(
+    `SELECT * FROM linking_codes
+     WHERE code = $1
+       AND used_at IS NULL
+       AND expires_at > NOW()`,
+    [code.toUpperCase()]
+  );
+
+  if (codeResult.rows.length === 0) {
+    return { error: 'Invalid or expired code' };
+  }
+
+  const linkingCode = codeResult.rows[0];
+
+  // Create device token
+  const tokenId = generateTokenId();
+  await db.query(
+    `INSERT INTO device_tokens (id, user_id, org_id, device_name, source)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [tokenId, linkingCode.user_id, linkingCode.org_id, deviceName, source]
+  );
+
+  // Mark code as used
+  await db.query(
+    `UPDATE linking_codes
+     SET used_at = NOW(), device_token_id = $2
+     WHERE code = $1`,
+    [code.toUpperCase(), tokenId]
+  );
+
+  // Get user info to return
+  const userResult = await db.query(
+    `SELECT u.email, u.name, o.name as org_name
+     FROM users u
+     JOIN organizations o ON u.org_id = o.id
+     WHERE u.id = $1`,
+    [linkingCode.user_id]
+  );
+
+  return {
+    token: tokenId,
+    userId: linkingCode.user_id,
+    orgId: linkingCode.org_id,
+    email: userResult.rows[0]?.email,
+    name: userResult.rows[0]?.name,
+    orgName: userResult.rows[0]?.org_name,
+  };
+}
+
+// Validate a device token and return user/org info
+export async function validateDeviceToken(tokenId) {
+  const result = await db.query(
+    `SELECT dt.*, u.email, u.name, o.name as org_name
+     FROM device_tokens dt
+     JOIN users u ON dt.user_id = u.id
+     JOIN organizations o ON dt.org_id = o.id
+     WHERE dt.id = $1 AND dt.revoked_at IS NULL`,
+    [tokenId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  // Update last_used_at
+  await db.query(
+    `UPDATE device_tokens SET last_used_at = NOW() WHERE id = $1`,
+    [tokenId]
+  );
+
+  return result.rows[0];
+}
+
+// List device tokens for a user
+export async function listDeviceTokens(userId) {
+  const result = await db.query(
+    `SELECT id, device_name, source, last_used_at, created_at
+     FROM device_tokens
+     WHERE user_id = $1 AND revoked_at IS NULL
+     ORDER BY created_at DESC`,
+    [userId]
+  );
+  return result.rows;
+}
+
+// Revoke a device token
+export async function revokeDeviceToken(tokenId, userId) {
+  const result = await db.query(
+    `UPDATE device_tokens
+     SET revoked_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+     RETURNING *`,
+    [tokenId, userId]
+  );
+  return result.rows[0];
+}
+
+// Save external metrics (from OpenClaw, Cursor, etc.)
+export async function saveExternalMetrics(userId, orgId, source, metrics) {
+  const result = await db.query(
+    `INSERT INTO metrics_snapshots (
+      user_id, org_id, reported_at, source,
+      claude_sessions, claude_messages, claude_input_tokens, claude_output_tokens,
+      claude_cache_read_tokens, claude_cache_creation_tokens, claude_tool_calls, claude_by_model
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    RETURNING id`,
+    [
+      userId,
+      orgId,
+      metrics.timestamp || new Date().toISOString(),
+      source,
+      metrics.usage?.sessions || 0,
+      metrics.usage?.messages || 0,
+      metrics.usage?.input_tokens || 0,
+      metrics.usage?.output_tokens || 0,
+      metrics.usage?.cache_read_tokens || 0,
+      metrics.usage?.cache_creation_tokens || 0,
+      metrics.usage?.tool_calls || 0,
+      JSON.stringify(metrics.usage?.models || {}),
+    ]
+  );
+
+  // Save daily metrics with source
+  await saveExternalDailyMetrics(userId, orgId, source, metrics);
+
+  return result.rows[0];
+}
+
+// Save external daily metrics
+async function saveExternalDailyMetrics(userId, orgId, source, metrics) {
+  // Process daily data if provided
+  for (const day of metrics.daily || []) {
+    if (!day.date) continue;
+
+    const tokens = (day.input_tokens || 0) + (day.output_tokens || 0);
+
+    await db.query(
+      `INSERT INTO daily_metrics (
+        user_id, org_id, date, source,
+        claude_sessions, claude_messages, claude_tokens, claude_tool_calls
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
+        claude_sessions = daily_metrics.claude_sessions + $5,
+        claude_messages = daily_metrics.claude_messages + $6,
+        claude_tokens = daily_metrics.claude_tokens + $7,
+        claude_tool_calls = daily_metrics.claude_tool_calls + $8,
+        updated_at = NOW()`,
+      [
+        userId, orgId, day.date, source,
+        day.sessions || 0,
+        day.messages || 0,
+        tokens,
+        day.tool_calls || 0,
+      ]
+    );
+  }
+
+  // If no daily data provided, create/update today's entry with totals
+  if (!metrics.daily || metrics.daily.length === 0) {
+    const today = new Date().toISOString().split('T')[0];
+    const tokens = (metrics.usage?.input_tokens || 0) + (metrics.usage?.output_tokens || 0);
+
+    await db.query(
+      `INSERT INTO daily_metrics (
+        user_id, org_id, date, source,
+        claude_sessions, claude_messages, claude_tokens, claude_tool_calls
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
+        claude_sessions = $5,
+        claude_messages = $6,
+        claude_tokens = $7,
+        claude_tool_calls = $8,
+        updated_at = NOW()`,
+      [
+        userId, orgId, today, source,
+        metrics.usage?.sessions || 0,
+        metrics.usage?.messages || 0,
+        tokens,
+        metrics.usage?.tool_calls || 0,
+      ]
+    );
+  }
+}
+
+// Get user metrics by source
+export async function getUserMetricsBySource(userId, period = 'all') {
+  const dateFilter = buildDateFilter(period).replace('d.date', 'date');
+
+  const result = await db.query(
+    `SELECT
+      source,
+      COALESCE(SUM(claude_sessions), 0) as claude_sessions,
+      COALESCE(SUM(claude_messages), 0) as claude_messages,
+      COALESCE(SUM(claude_tokens), 0) as claude_tokens,
+      COALESCE(SUM(claude_tool_calls), 0) as claude_tool_calls
+     FROM daily_metrics
+     WHERE user_id = $1 AND ${dateFilter}
+     GROUP BY source`,
+    [userId]
+  );
+  return result.rows;
+}
+
 export default db;

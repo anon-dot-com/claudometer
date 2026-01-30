@@ -1,0 +1,41 @@
+{
+  "name": "@claudometer/openclaw-reporter",
+  "version": "1.0.0",
+  "description": "OpenClaw plugin to report usage metrics to Claudometer",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "openclaw": {
+    "extensions": ["dist/index.js"]
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "claudometer",
+    "metrics",
+    "usage-tracking"
+  ],
+  "author": "Claudometer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/claudometer/openclaw-reporter"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=1.0.0"
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "skills"
+  ]
+}
