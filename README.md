@@ -56,6 +56,59 @@ Visit [claudometer.ai](https://claudometer.ai) to see your metrics and team lead
 | `claudometer setup` | Setup auto-sync every 30 minutes |
 | `claudometer setup --uninstall` | Remove auto-sync |
 | `claudometer status` | Show current tracking status |
+| `claudometer link --generate` | Generate a code to link external tools |
+| `claudometer link --list` | List linked devices |
+| `claudometer link --revoke <id>` | Revoke a device token |
+
+## Using with OpenClaw (Moltbot)
+
+If your team uses [OpenClaw](https://openclaw.ai) (formerly Moltbot/Clawdbot) alongside Claude Code, you can track both in Claudometer.
+
+### Setup
+
+1. **Install the OpenClaw plugin** on the machine running OpenClaw:
+
+   ```bash
+   openclaw plugins install @claudometer/openclaw-reporter
+   ```
+
+2. **Generate a linking code** from any machine with Claudometer CLI:
+
+   ```bash
+   claudometer link --generate
+   ```
+
+   This displays a 6-character code valid for 10 minutes.
+
+3. **Link OpenClaw** using the code:
+
+   ```bash
+   openclaw claudometer link ABC123
+   ```
+
+   Or use the chat command: `/claudometer link ABC123`
+
+4. **Verify the connection**:
+
+   ```bash
+   openclaw claudometer status
+   ```
+
+### How It Works
+
+- The plugin automatically syncs usage every 30 minutes (configurable)
+- Metrics appear in your Claudometer dashboard alongside Claude Code usage
+- Use `/claudometer` in OpenClaw chat to check sync status
+
+### Managing Devices
+
+```bash
+# List all linked devices
+claudometer link --list
+
+# Revoke a device token
+claudometer link --revoke clm_abc123...
+```
 
 ## What's Collected
 
@@ -64,6 +117,12 @@ Visit [claudometer.ai](https://claudometer.ai) to see your metrics and team lead
 - Input/output tokens
 - Tool calls
 - Usage by model
+
+### External Tools (OpenClaw, etc.)
+- Messages and sessions
+- Token usage
+- Usage by model
+- Tracked separately with source breakdown
 
 ### Git Metrics
 - Commits authored by you
