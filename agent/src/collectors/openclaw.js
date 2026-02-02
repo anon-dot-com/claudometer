@@ -88,11 +88,11 @@ export async function collectOpenClawMetrics() {
           // Add session to this day
           daily.sessions.add(sessionId);
 
-          // Accumulate token counts
-          const inputTokens = usage.input_tokens || 0;
-          const outputTokens = usage.output_tokens || 0;
-          const cacheReadTokens = usage.cache_read_input_tokens || 0;
-          const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+          // Accumulate token counts (OpenClaw uses 'input'/'output', not 'input_tokens'/'output_tokens')
+          const inputTokens = usage.input || usage.input_tokens || 0;
+          const outputTokens = usage.output || usage.output_tokens || 0;
+          const cacheReadTokens = usage.cacheRead || usage.cache_read_input_tokens || 0;
+          const cacheCreationTokens = usage.cacheWrite || usage.cache_creation_input_tokens || 0;
 
           daily.messages++;
           daily.inputTokens += inputTokens;
@@ -100,10 +100,14 @@ export async function collectOpenClawMetrics() {
           daily.cacheReadTokens += cacheReadTokens;
           daily.cacheCreationTokens += cacheCreationTokens;
 
-          // Track tool calls
-          if (msg.type === 'tool_use' || msg.type === 'tool_result') {
-            daily.toolCalls++;
-            totalToolCalls++;
+          // Track tool calls (count toolCall content blocks in assistant messages)
+          if (msg.message?.content && Array.isArray(msg.message.content)) {
+            for (const block of msg.message.content) {
+              if (block.type === 'toolCall' || block.type === 'tool_use') {
+                daily.toolCalls++;
+                totalToolCalls++;
+              }
+            }
           }
 
           // Update totals
@@ -178,13 +182,13 @@ async function parseJsonlFile(filePath) {
 
     try {
       const msg = JSON.parse(line);
-      // Only include messages with usage data (assistant responses)
-      if (msg.type === 'assistant' && msg.message?.usage) {
+      // OpenClaw format: type='message' with message.role='assistant' and message.usage
+      if (msg.type === 'message' && msg.message?.role === 'assistant' && msg.message?.usage) {
         messages.push(msg);
       }
-      // Also track tool use messages
-      if (msg.type === 'tool_use' || msg.type === 'tool_result') {
-        messages.push(msg);
+      // Also track tool results
+      if (msg.type === 'message' && msg.message?.role === 'toolResult') {
+        messages.push({ ...msg, isToolResult: true });
       }
     } catch {
       // Skip malformed lines
