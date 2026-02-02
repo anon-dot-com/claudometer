@@ -1,5 +1,6 @@
 import { createClerkClient, verifyToken } from '@clerk/backend';
 import jwt from 'jsonwebtoken';
+import { verifyDeviceToken } from '../db/index.js';
 
 const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
@@ -40,6 +41,20 @@ export async function authenticateRequest(req, res, next) {
       name: cliPayload.name,
       orgId: cliPayload.orgId,
       orgName: cliPayload.orgName,
+      tokenType: 'cli',
+    };
+    return next();
+  }
+
+  // Try device token (opaque token verified by hash)
+  const devicePayload = await verifyDeviceToken(token);
+  if (devicePayload) {
+    req.auth = {
+      userId: devicePayload.user_id,
+      orgId: devicePayload.org_id,
+      deviceId: devicePayload.id,
+      deviceName: devicePayload.name,
+      tokenType: 'device',
     };
     return next();
   }
@@ -112,6 +127,20 @@ export async function devAuth(req, res, next) {
               name: cliPayload.name,
               orgId: 'org_anthropic', // Override to dev org
               orgName: 'Anthropic',
+              tokenType: 'cli',
+            };
+            return next();
+          }
+
+          // Try device token
+          const devicePayload = await verifyDeviceToken(token);
+          if (devicePayload) {
+            req.auth = {
+              userId: devicePayload.user_id,
+              orgId: 'org_anthropic', // Override to dev org
+              deviceId: devicePayload.id,
+              deviceName: devicePayload.name,
+              tokenType: 'device',
             };
             return next();
           }

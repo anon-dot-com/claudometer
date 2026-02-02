@@ -110,3 +110,45 @@ CREATE INDEX IF NOT EXISTS idx_daily_metrics_org_date
 
 CREATE INDEX IF NOT EXISTS idx_weekly_metrics_org_week
   ON weekly_metrics(org_id, week_start DESC);
+
+-- Device tokens for external bots/tools
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES users(id) NOT NULL,
+  org_id TEXT REFERENCES organizations(id) NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user
+  ON device_tokens(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_hash
+  ON device_tokens(token_hash) WHERE revoked_at IS NULL;
+
+-- One-time linking codes for pairing devices
+CREATE TABLE IF NOT EXISTS linking_codes (
+  id SERIAL PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  user_id TEXT REFERENCES users(id) NOT NULL,
+  org_id TEXT REFERENCES organizations(id) NOT NULL,
+  device_name TEXT,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_linking_codes_code
+  ON linking_codes(code) WHERE consumed_at IS NULL;
+
+-- Add source column to metrics tables for tracking origin (cli, bot, external tool)
+ALTER TABLE metrics_snapshots ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'cli';
+ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'cli';
+
+CREATE INDEX IF NOT EXISTS idx_metrics_snapshots_source
+  ON metrics_snapshots(source);
+CREATE INDEX IF NOT EXISTS idx_daily_metrics_source
+  ON daily_metrics(source);

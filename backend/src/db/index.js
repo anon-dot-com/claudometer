@@ -1,4 +1,5 @@
 import pg from 'pg';
+import crypto from 'crypto';
 import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -56,20 +57,21 @@ export async function findOrCreateUser(id, email, name, orgId) {
 }
 
 // Metrics queries
-export async function saveMetricsSnapshot(userId, orgId, metrics) {
+export async function saveMetricsSnapshot(userId, orgId, metrics, source = 'cli') {
   const result = await db.query(
     `INSERT INTO metrics_snapshots (
-      user_id, org_id, reported_at,
+      user_id, org_id, reported_at, source,
       claude_sessions, claude_messages, claude_input_tokens, claude_output_tokens,
       claude_cache_read_tokens, claude_cache_creation_tokens, claude_tool_calls, claude_by_model,
       git_repos_scanned, git_repos_contributed, git_commits, git_lines_added,
       git_lines_deleted, git_files_changed, git_by_repo
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
     RETURNING id`,
     [
       userId,
       orgId,
       metrics.timestamp,
+      source,
       metrics.claude?.totals?.sessions || 0,
       metrics.claude?.totals?.messages || 0,
       metrics.claude?.totals?.inputTokens || 0,
@@ -89,13 +91,13 @@ export async function saveMetricsSnapshot(userId, orgId, metrics) {
   );
 
   // Save daily metrics
-  await saveDailyMetrics(userId, orgId, metrics);
+  await saveDailyMetrics(userId, orgId, metrics, source);
 
   return result.rows[0];
 }
 
 // Save daily metrics from CLI data
-async function saveDailyMetrics(userId, orgId, metrics) {
+async function saveDailyMetrics(userId, orgId, metrics, source = 'cli') {
   // Combine Claude daily data and Git daily data
   const dailyData = {};
 
@@ -289,6 +291,106 @@ export async function getOrgDailyActivity(orgId, days = 30) {
     [orgId]
   );
   return result.rows;
+}
+
+// ============================================
+// Device Token & Linking Code Functions
+// ============================================
+
+// Generate a 6-character alphanumeric code (excluding confusing chars)
+function generateLinkingCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(crypto.randomInt(chars.length));
+  }
+  return code;
+}
+
+// Hash a token for secure storage
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Create a new linking code (valid for 15 minutes)
+export async function createLinkingCode(userId, orgId, deviceName = null) {
+  const code = generateLinkingCode();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  const result = await db.query(
+    `INSERT INTO linking_codes (code, user_id, org_id, device_name, expires_at)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [code, userId, orgId, deviceName, expiresAt]
+  );
+  return result.rows[0];
+}
+
+// Consume a linking code and return user/org info
+export async function consumeLinkingCode(code) {
+  const result = await db.query(
+    `UPDATE linking_codes
+     SET consumed_at = NOW()
+     WHERE code = $1
+       AND consumed_at IS NULL
+       AND expires_at > NOW()
+     RETURNING user_id, org_id, device_name`,
+    [code.toUpperCase()]
+  );
+  return result.rows[0] || null;
+}
+
+// Create a new device token
+export async function createDeviceToken(userId, orgId, deviceName) {
+  const id = crypto.randomUUID();
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hashToken(token);
+
+  await db.query(
+    `INSERT INTO device_tokens (id, user_id, org_id, token_hash, name)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [id, userId, orgId, tokenHash, deviceName]
+  );
+
+  return { id, token, name: deviceName };
+}
+
+// Verify a device token and return user/org info (also updates last_used_at)
+export async function verifyDeviceToken(token) {
+  const tokenHash = hashToken(token);
+
+  const result = await db.query(
+    `UPDATE device_tokens
+     SET last_used_at = NOW()
+     WHERE token_hash = $1 AND revoked_at IS NULL
+     RETURNING id, user_id, org_id, name`,
+    [tokenHash]
+  );
+  return result.rows[0] || null;
+}
+
+// List user's device tokens
+export async function listDeviceTokens(userId) {
+  const result = await db.query(
+    `SELECT id, name, created_at, last_used_at, revoked_at
+     FROM device_tokens
+     WHERE user_id = $1
+     ORDER BY created_at DESC`,
+    [userId]
+  );
+  return result.rows;
+}
+
+// Revoke a device token
+export async function revokeDeviceToken(tokenId, userId) {
+  const result = await db.query(
+    `UPDATE device_tokens
+     SET revoked_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+     RETURNING id`,
+    [tokenId, userId]
+  );
+  return result.rows[0] || null;
 }
 
 export default db;

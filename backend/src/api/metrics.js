@@ -22,7 +22,7 @@ router.post('/', async (req, res) => {
     await findOrCreateUser(userId, email, name, orgId);
 
     // Save the metrics snapshot
-    const snapshot = await saveMetricsSnapshot(userId, orgId, metrics);
+    const snapshot = await saveMetricsSnapshot(userId, orgId, metrics, 'cli');
 
     res.json({
       success: true,
@@ -31,6 +31,36 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Failed to save metrics:', error);
+    res.status(500).json({ error: 'Failed to save metrics' });
+  }
+});
+
+// POST /api/metrics/external - Receive metrics from external devices/bots
+router.post('/external', async (req, res) => {
+  try {
+    const { userId, orgId, tokenType, deviceName } = req.auth;
+
+    // Only allow device tokens for this endpoint
+    if (tokenType !== 'device') {
+      return res.status(403).json({
+        error: 'This endpoint requires a device token. Use POST /api/metrics for CLI tokens.',
+      });
+    }
+
+    const metrics = req.body;
+    const source = metrics.source || deviceName || 'external';
+
+    // Save the metrics snapshot with source tracking
+    const snapshot = await saveMetricsSnapshot(userId, orgId, metrics, source);
+
+    res.json({
+      success: true,
+      snapshotId: snapshot.id,
+      source,
+      message: 'External metrics received',
+    });
+  } catch (error) {
+    console.error('Failed to save external metrics:', error);
     res.status(500).json({ error: 'Failed to save metrics' });
   }
 });

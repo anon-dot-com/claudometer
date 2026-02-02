@@ -1,6 +1,14 @@
 import { Router } from 'express';
 import { createClerkClient, verifyToken } from '@clerk/backend';
 import jwt from 'jsonwebtoken';
+import {
+  createLinkingCode,
+  consumeLinkingCode,
+  createDeviceToken,
+  listDeviceTokens,
+  revokeDeviceToken,
+} from '../db/index.js';
+import { authenticateRequest } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -160,6 +168,97 @@ router.post('/token', async (req, res) => {
   } catch (error) {
     console.error('Token exchange error:', error.message);
     return res.status(401).json({ error: 'Authentication failed' });
+  }
+});
+
+// ============================================
+// Device Linking Endpoints
+// ============================================
+
+// POST /auth/link - Generate a linking code (requires CLI auth)
+router.post('/link', authenticateRequest, async (req, res) => {
+  try {
+    const { userId, orgId } = req.auth;
+    const { deviceName } = req.body;
+
+    const linkingCode = await createLinkingCode(userId, orgId, deviceName);
+
+    res.json({
+      code: linkingCode.code,
+      expiresAt: linkingCode.expires_at,
+      expiresIn: '15 minutes',
+    });
+  } catch (error) {
+    console.error('Link code generation error:', error);
+    res.status(500).json({ error: 'Failed to generate linking code' });
+  }
+});
+
+// POST /auth/device - Exchange linking code for device token (no auth required)
+router.post('/device', async (req, res) => {
+  try {
+    const { code, deviceName } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Missing linking code' });
+    }
+
+    const linkData = await consumeLinkingCode(code);
+
+    if (!linkData) {
+      return res.status(400).json({ error: 'Invalid or expired linking code' });
+    }
+
+    // Use provided name or fallback to hint from code creation
+    const name = deviceName || linkData.device_name || 'Unnamed Device';
+
+    const deviceToken = await createDeviceToken(
+      linkData.user_id,
+      linkData.org_id,
+      name
+    );
+
+    res.json({
+      deviceId: deviceToken.id,
+      token: deviceToken.token,
+      name: deviceToken.name,
+      expiresIn: '1 year',
+    });
+  } catch (error) {
+    console.error('Device token creation error:', error);
+    res.status(500).json({ error: 'Failed to create device token' });
+  }
+});
+
+// GET /auth/devices - List user's linked devices (requires CLI auth)
+router.get('/devices', authenticateRequest, async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const devices = await listDeviceTokens(userId);
+
+    res.json({ devices });
+  } catch (error) {
+    console.error('List devices error:', error);
+    res.status(500).json({ error: 'Failed to list devices' });
+  }
+});
+
+// DELETE /auth/devices/:id - Revoke a device token (requires CLI auth)
+router.delete('/devices/:id', authenticateRequest, async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { id } = req.params;
+
+    const revoked = await revokeDeviceToken(id, userId);
+
+    if (!revoked) {
+      return res.status(404).json({ error: 'Device not found or already revoked' });
+    }
+
+    res.json({ success: true, message: 'Device revoked' });
+  } catch (error) {
+    console.error('Revoke device error:', error);
+    res.status(500).json({ error: 'Failed to revoke device' });
   }
 });
 
