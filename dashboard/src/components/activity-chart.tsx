@@ -141,7 +141,7 @@ export function ActivityChart() {
                   borderRadius: "8px",
                 }}
                 labelFormatter={formatDate}
-                formatter={(value: number) => [value.toLocaleString(), undefined]}
+                formatter={(value) => [(value ?? 0).toLocaleString(), undefined]}
               />
               <Legend
                 wrapperStyle={{ paddingTop: "10px" }}
