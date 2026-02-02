@@ -342,6 +342,7 @@ function buildDateFilter(period) {
 
 // Get org leaderboard with time period support
 // Uses daily_metrics as the single source of truth for ALL periods
+// Returns total value plus breakdown by source (first_party = claude_code, third_party = openclaw, etc.)
 export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit = 10, period = 'all', scope = 'org') {
   const allowedMetrics = [
     'claude_tokens',
@@ -362,6 +363,8 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
       `SELECT
         u.id, u.name, u.email,
         COALESCE(SUM(d.${metric}), 0) as value,
+        COALESCE(SUM(CASE WHEN d.source = 'claude_code' THEN d.${metric} ELSE 0 END), 0) as first_party,
+        COALESCE(SUM(CASE WHEN d.source != 'claude_code' THEN d.${metric} ELSE 0 END), 0) as third_party,
         MAX(d.updated_at) as reported_at
        FROM users u
        LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}
@@ -398,6 +401,8 @@ export async function getOrgLeaderboard(orgId, metric = 'claude_tokens', limit =
     `SELECT
       u.id, u.name, u.email,
       COALESCE(SUM(d.${metric}), 0) as value,
+      COALESCE(SUM(CASE WHEN d.source = 'claude_code' THEN d.${metric} ELSE 0 END), 0) as first_party,
+      COALESCE(SUM(CASE WHEN d.source != 'claude_code' THEN d.${metric} ELSE 0 END), 0) as third_party,
       MAX(d.updated_at) as reported_at
      FROM users u
      LEFT JOIN daily_metrics d ON u.id = d.user_id AND ${dateFilter}

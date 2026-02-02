@@ -9,6 +9,8 @@ interface LeaderboardEntry {
   name: string;
   email: string;
   value: number;
+  first_party?: number;
+  third_party?: number;
   reported_at?: string;
 }
 
