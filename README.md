@@ -180,3 +180,4 @@ Make sure you're logged in: `claudometer login`
 ## License
 
 MIT
+
