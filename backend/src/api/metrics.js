@@ -18,6 +18,79 @@ import { clerk } from '../middleware/auth.js';
 
 const router = Router();
 
+// Normalize metrics from various sources to a common format
+// Accepts:
+//   - OpenClaw format: { input, output, cacheRead, cost: { total } }
+//   - Claude Code format: { sessions, messages, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls }
+//   - Legacy format: { usage: { sessions, messages, input_tokens, output_tokens, ... } }
+function normalizeMetrics(rawMetrics) {
+  // If already in the expected "usage" wrapper format
+  if (rawMetrics.usage) {
+    return {
+      timestamp: rawMetrics.timestamp || new Date().toISOString(),
+      usage: {
+        sessions: rawMetrics.usage.sessions || 0,
+        messages: rawMetrics.usage.messages || 0,
+        input_tokens: rawMetrics.usage.input_tokens || rawMetrics.usage.inputTokens || 0,
+        output_tokens: rawMetrics.usage.output_tokens || rawMetrics.usage.outputTokens || 0,
+        cache_read_tokens: rawMetrics.usage.cache_read_tokens || rawMetrics.usage.cacheReadTokens || rawMetrics.usage.cacheRead || 0,
+        cache_creation_tokens: rawMetrics.usage.cache_creation_tokens || rawMetrics.usage.cacheCreationTokens || rawMetrics.usage.cacheWrite || 0,
+        tool_calls: rawMetrics.usage.tool_calls || rawMetrics.usage.toolCalls || 0,
+        models: rawMetrics.usage.models || rawMetrics.usage.byModel || {},
+      },
+    };
+  }
+
+  // OpenClaw per-message format: { input, output, cacheRead, cost }
+  if ('input' in rawMetrics || 'output' in rawMetrics) {
+    return {
+      timestamp: rawMetrics.timestamp || new Date().toISOString(),
+      usage: {
+        sessions: rawMetrics.sessions || 0,
+        messages: rawMetrics.messages || 1, // At least 1 message if we have token data
+        input_tokens: rawMetrics.input || 0,
+        output_tokens: rawMetrics.output || 0,
+        cache_read_tokens: rawMetrics.cacheRead || 0,
+        cache_creation_tokens: rawMetrics.cacheWrite || 0,
+        tool_calls: rawMetrics.toolCalls || 0,
+        models: rawMetrics.models || rawMetrics.byModel || {},
+      },
+    };
+  }
+
+  // Claude Code totals format: { sessions, messages, inputTokens, outputTokens, ... }
+  if ('inputTokens' in rawMetrics || 'outputTokens' in rawMetrics) {
+    return {
+      timestamp: rawMetrics.timestamp || rawMetrics.collectedAt || new Date().toISOString(),
+      usage: {
+        sessions: rawMetrics.sessions || 0,
+        messages: rawMetrics.messages || 0,
+        input_tokens: rawMetrics.inputTokens || 0,
+        output_tokens: rawMetrics.outputTokens || 0,
+        cache_read_tokens: rawMetrics.cacheReadTokens || 0,
+        cache_creation_tokens: rawMetrics.cacheCreationTokens || 0,
+        tool_calls: rawMetrics.toolCalls || 0,
+        models: rawMetrics.models || rawMetrics.byModel || {},
+      },
+    };
+  }
+
+  // Fallback: assume snake_case flat format
+  return {
+    timestamp: rawMetrics.timestamp || new Date().toISOString(),
+    usage: {
+      sessions: rawMetrics.sessions || 0,
+      messages: rawMetrics.messages || 0,
+      input_tokens: rawMetrics.input_tokens || 0,
+      output_tokens: rawMetrics.output_tokens || 0,
+      cache_read_tokens: rawMetrics.cache_read_tokens || 0,
+      cache_creation_tokens: rawMetrics.cache_creation_tokens || 0,
+      tool_calls: rawMetrics.tool_calls || 0,
+      models: rawMetrics.models || {},
+    },
+  };
+}
+
 // Separate router for external metrics (uses device token auth, not Clerk)
 export const externalMetricsRouter = Router();
 
@@ -37,7 +110,8 @@ externalMetricsRouter.post('/', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or revoked device token' });
     }
 
-    const metrics = req.body;
+    // Normalize metrics from any supported format
+    const normalizedMetrics = normalizeMetrics(req.body);
     const source = device.source || 'openclaw';
 
     // Ensure org and user exist
@@ -45,13 +119,14 @@ externalMetricsRouter.post('/', async (req, res) => {
     await findOrCreateUser(device.user_id, device.email, device.name, device.org_id);
 
     // Save the external metrics
-    const snapshot = await saveExternalMetrics(device.user_id, device.org_id, source, metrics);
+    const snapshot = await saveExternalMetrics(device.user_id, device.org_id, source, normalizedMetrics);
 
     res.json({
       success: true,
       snapshotId: snapshot.id,
       source,
       message: 'External metrics received',
+      normalized: normalizedMetrics.usage, // Return normalized data for debugging
     });
   } catch (error) {
     console.error('Failed to save external metrics:', error);
