@@ -506,6 +506,54 @@ export async function getUserDailyActivity(userId, days = 30) {
   return result.rows;
 }
 
+// Get user daily activity broken down by source (first-party vs third-party)
+export async function getUserDailyActivityBySource(userId, days = 30) {
+  const result = await db.query(
+    `SELECT
+      date,
+      source,
+      COALESCE(SUM(claude_messages), 0) as claude_messages,
+      COALESCE(SUM(claude_tokens), 0) as claude_tokens,
+      COALESCE(SUM(git_commits), 0) as git_commits,
+      COALESCE(SUM(git_lines_added), 0) as git_lines_added
+     FROM daily_metrics
+     WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '${days} days'
+     GROUP BY date, source
+     ORDER BY date, source`,
+    [userId]
+  );
+
+  // Transform into a more useful format: { date, first_party: {...}, third_party: {...} }
+  const byDate = {};
+  for (const row of result.rows) {
+    const dateStr = row.date.toISOString().split('T')[0];
+    if (!byDate[dateStr]) {
+      byDate[dateStr] = {
+        date: dateStr,
+        first_party: { claude_messages: 0, claude_tokens: 0, git_commits: 0, git_lines_added: 0 },
+        third_party: { claude_messages: 0, claude_tokens: 0, git_commits: 0, git_lines_added: 0 },
+        total: { claude_messages: 0, claude_tokens: 0, git_commits: 0, git_lines_added: 0 },
+      };
+    }
+
+    const isFirstParty = row.source === 'claude_code';
+    const target = isFirstParty ? 'first_party' : 'third_party';
+
+    byDate[dateStr][target].claude_messages += parseInt(row.claude_messages) || 0;
+    byDate[dateStr][target].claude_tokens += parseInt(row.claude_tokens) || 0;
+    byDate[dateStr][target].git_commits += parseInt(row.git_commits) || 0;
+    byDate[dateStr][target].git_lines_added += parseInt(row.git_lines_added) || 0;
+
+    // Also update totals
+    byDate[dateStr].total.claude_messages += parseInt(row.claude_messages) || 0;
+    byDate[dateStr].total.claude_tokens += parseInt(row.claude_tokens) || 0;
+    byDate[dateStr].total.git_commits += parseInt(row.git_commits) || 0;
+    byDate[dateStr].total.git_lines_added += parseInt(row.git_lines_added) || 0;
+  }
+
+  return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // Join request queries
 export async function createJoinRequest(userId, userEmail, userName, orgId) {
   const result = await db.query(
@@ -800,6 +848,39 @@ export async function getUserMetricsBySource(userId, period = 'all') {
     [userId]
   );
   return result.rows;
+}
+
+// Upsert daily metrics idempotently (replaces values instead of accumulating)
+// This is used for Option A: reading from source (JSONL transcripts) and sending daily summaries
+// The key is (user_id, date, source) - if the same date is reported twice, it replaces the values
+export async function upsertDailyMetricsIdempotent(userId, orgId, source, date, metrics) {
+  const tokens = (metrics.input_tokens || 0) + (metrics.output_tokens || 0);
+
+  const result = await db.query(
+    `INSERT INTO daily_metrics (
+      user_id, org_id, date, source,
+      claude_sessions, claude_messages, claude_tokens, claude_tool_calls
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    ON CONFLICT (user_id, date, source) DO UPDATE SET
+      org_id = $2,
+      claude_sessions = $5,
+      claude_messages = $6,
+      claude_tokens = $7,
+      claude_tool_calls = $8,
+      updated_at = NOW()
+    RETURNING *`,
+    [
+      userId,
+      orgId,
+      date,
+      source,
+      metrics.sessions || 0,
+      metrics.messages || 0,
+      tokens,
+      metrics.tool_calls || 0,
+    ]
+  );
+  return result.rows[0];
 }
 
 export default db;

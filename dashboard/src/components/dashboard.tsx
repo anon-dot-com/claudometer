@@ -18,6 +18,18 @@ interface Metrics {
   reported_at: string;
 }
 
+interface SourceMetrics {
+  claude_sessions: number;
+  claude_messages: number;
+  claude_tokens: number;
+  claude_tool_calls: number;
+}
+
+interface MetricsBySource {
+  sources: Record<string, SourceMetrics>;
+  totals: SourceMetrics;
+}
+
 type Period = "today" | "week" | "month" | "all";
 
 const periodLabels: Record<Period, string> = {
@@ -27,10 +39,21 @@ const periodLabels: Record<Period, string> = {
   all: "All Time",
 };
 
+// Friendly names for sources
+const sourceLabels: Record<string, string> = {
+  claude_code: "First-party",
+  openclaw: "Third-party",
+};
+
+function getSourceLabel(source: string): string {
+  return sourceLabels[source] || source;
+}
+
 export function Dashboard() {
   const { getToken } = useAuth();
   const { user } = useUser();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [metricsBySource, setMetricsBySource] = useState<MetricsBySource | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [statsCacheUpdatedAt, setStatsCacheUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,18 +67,28 @@ export function Dashboard() {
         const token = await getToken();
         if (!token) return;
 
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/me?period=${period}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        // Fetch both regular metrics and by-source breakdown
+        const [metricsRes, bySourceRes] = await Promise.all([
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/me?period=${period}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/by-source?period=${period}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+        ]);
 
-        if (res.ok) {
-          const data = await res.json();
+        if (metricsRes.ok) {
+          const data = await metricsRes.json();
           setMetrics(data.metrics);
           setLastSynced(data.lastSynced);
           setStatsCacheUpdatedAt(data.statsCacheUpdatedAt);
+        }
+
+        if (bySourceRes.ok) {
+          const data = await bySourceRes.json();
+          setMetricsBySource(data);
         }
       } catch (err) {
         setError("Failed to load metrics");
@@ -67,6 +100,30 @@ export function Dashboard() {
 
     loadMetrics();
   }, [getToken, period]);
+
+  // Get first-party and third-party metrics
+  const firstParty = metricsBySource?.sources?.claude_code || {
+    claude_sessions: 0,
+    claude_messages: 0,
+    claude_tokens: 0,
+    claude_tool_calls: 0,
+  };
+
+  // Aggregate all non-claude_code sources as third-party
+  const thirdPartySources = Object.entries(metricsBySource?.sources || {}).filter(
+    ([source]) => source !== "claude_code"
+  );
+  const thirdParty = thirdPartySources.reduce(
+    (acc, [, metrics]) => ({
+      claude_sessions: acc.claude_sessions + (metrics.claude_sessions || 0),
+      claude_messages: acc.claude_messages + (metrics.claude_messages || 0),
+      claude_tokens: acc.claude_tokens + (metrics.claude_tokens || 0),
+      claude_tool_calls: acc.claude_tool_calls + (metrics.claude_tool_calls || 0),
+    }),
+    { claude_sessions: 0, claude_messages: 0, claude_tokens: 0, claude_tool_calls: 0 }
+  );
+
+  const hasThirdParty = thirdParty.claude_tokens > 0 || thirdParty.claude_messages > 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -147,16 +204,58 @@ export function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Metrics grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Claude Tokens Card with First-party / Third-party breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* First-party Tokens (Claude Code) */}
+            <div className="rounded-lg border p-6 bg-purple-500/10 border-purple-500/20">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-sm font-medium text-zinc-400">First-party Tokens</h3>
+                <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">Claude Code</span>
+              </div>
+              <p className="text-3xl font-bold mt-2 text-white">
+                {Number(firstParty.claude_tokens || 0).toLocaleString()}
+              </p>
+              <p className="text-sm mt-1 text-purple-400">
+                {Number(firstParty.claude_messages || 0).toLocaleString()} messages
+              </p>
+            </div>
+
+            {/* Third-party Tokens (External tools) */}
+            <div className="rounded-lg border p-6 bg-cyan-500/10 border-cyan-500/20">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-sm font-medium text-zinc-400">Third-party Tokens</h3>
+                <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300">External Tools</span>
+              </div>
+              <p className="text-3xl font-bold mt-2 text-white">
+                {Number(thirdParty.claude_tokens || 0).toLocaleString()}
+              </p>
+              <div className="text-sm mt-1 text-cyan-400">
+                {hasThirdParty ? (
+                  <span>{Number(thirdParty.claude_messages || 0).toLocaleString()} messages</span>
+                ) : (
+                  <span className="text-zinc-500">No external tools connected</span>
+                )}
+              </div>
+              {thirdPartySources.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {thirdPartySources.map(([source, sourceMetrics]) => (
+                    <span
+                      key={source}
+                      className="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400"
+                      title={`${Number(sourceMetrics.claude_tokens || 0).toLocaleString()} tokens`}
+                    >
+                      {source}: {Number(sourceMetrics.claude_tokens || 0).toLocaleString()}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Other metrics grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <MetricCard
-              title="Claude Tokens"
-              value={Number(metrics.claude_tokens || 0).toLocaleString()}
-              subtitle={periodLabels[period]}
-              color="purple"
-            />
-            <MetricCard
-              title="Claude Messages"
+              title="Total Messages"
               value={Number(metrics.claude_messages || 0).toLocaleString()}
               subtitle={`${Number(metrics.claude_sessions || 0).toLocaleString()} sessions`}
               color="blue"

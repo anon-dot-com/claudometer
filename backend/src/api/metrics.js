@@ -9,14 +9,89 @@ import {
   getOrgLeaderboard,
   getOrgDailyActivity,
   getUserDailyActivity,
+  getUserDailyActivityBySource,
   syncOrgMembersFromClerk,
   validateDeviceToken,
   saveExternalMetrics,
   getUserMetricsBySource,
+  upsertDailyMetricsIdempotent,
 } from '../db/index.js';
 import { clerk } from '../middleware/auth.js';
 
 const router = Router();
+
+// Normalize metrics from various sources to a common format
+// Accepts:
+//   - OpenClaw format: { input, output, cacheRead, cost: { total } }
+//   - Claude Code format: { sessions, messages, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls }
+//   - Legacy format: { usage: { sessions, messages, input_tokens, output_tokens, ... } }
+function normalizeMetrics(rawMetrics) {
+  // If already in the expected "usage" wrapper format
+  if (rawMetrics.usage) {
+    return {
+      timestamp: rawMetrics.timestamp || new Date().toISOString(),
+      usage: {
+        sessions: rawMetrics.usage.sessions || 0,
+        messages: rawMetrics.usage.messages || 0,
+        input_tokens: rawMetrics.usage.input_tokens || rawMetrics.usage.inputTokens || 0,
+        output_tokens: rawMetrics.usage.output_tokens || rawMetrics.usage.outputTokens || 0,
+        cache_read_tokens: rawMetrics.usage.cache_read_tokens || rawMetrics.usage.cacheReadTokens || rawMetrics.usage.cacheRead || 0,
+        cache_creation_tokens: rawMetrics.usage.cache_creation_tokens || rawMetrics.usage.cacheCreationTokens || rawMetrics.usage.cacheWrite || 0,
+        tool_calls: rawMetrics.usage.tool_calls || rawMetrics.usage.toolCalls || 0,
+        models: rawMetrics.usage.models || rawMetrics.usage.byModel || {},
+      },
+    };
+  }
+
+  // OpenClaw per-message format: { input, output, cacheRead, cost }
+  if ('input' in rawMetrics || 'output' in rawMetrics) {
+    return {
+      timestamp: rawMetrics.timestamp || new Date().toISOString(),
+      usage: {
+        sessions: rawMetrics.sessions || 0,
+        messages: rawMetrics.messages || 1, // At least 1 message if we have token data
+        input_tokens: rawMetrics.input || 0,
+        output_tokens: rawMetrics.output || 0,
+        cache_read_tokens: rawMetrics.cacheRead || 0,
+        cache_creation_tokens: rawMetrics.cacheWrite || 0,
+        tool_calls: rawMetrics.toolCalls || 0,
+        models: rawMetrics.models || rawMetrics.byModel || {},
+      },
+    };
+  }
+
+  // Claude Code totals format: { sessions, messages, inputTokens, outputTokens, ... }
+  if ('inputTokens' in rawMetrics || 'outputTokens' in rawMetrics) {
+    return {
+      timestamp: rawMetrics.timestamp || rawMetrics.collectedAt || new Date().toISOString(),
+      usage: {
+        sessions: rawMetrics.sessions || 0,
+        messages: rawMetrics.messages || 0,
+        input_tokens: rawMetrics.inputTokens || 0,
+        output_tokens: rawMetrics.outputTokens || 0,
+        cache_read_tokens: rawMetrics.cacheReadTokens || 0,
+        cache_creation_tokens: rawMetrics.cacheCreationTokens || 0,
+        tool_calls: rawMetrics.toolCalls || 0,
+        models: rawMetrics.models || rawMetrics.byModel || {},
+      },
+    };
+  }
+
+  // Fallback: assume snake_case flat format
+  return {
+    timestamp: rawMetrics.timestamp || new Date().toISOString(),
+    usage: {
+      sessions: rawMetrics.sessions || 0,
+      messages: rawMetrics.messages || 0,
+      input_tokens: rawMetrics.input_tokens || 0,
+      output_tokens: rawMetrics.output_tokens || 0,
+      cache_read_tokens: rawMetrics.cache_read_tokens || 0,
+      cache_creation_tokens: rawMetrics.cache_creation_tokens || 0,
+      tool_calls: rawMetrics.tool_calls || 0,
+      models: rawMetrics.models || {},
+    },
+  };
+}
 
 // Separate router for external metrics (uses device token auth, not Clerk)
 export const externalMetricsRouter = Router();
@@ -37,7 +112,8 @@ externalMetricsRouter.post('/', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or revoked device token' });
     }
 
-    const metrics = req.body;
+    // Normalize metrics from any supported format
+    const normalizedMetrics = normalizeMetrics(req.body);
     const source = device.source || 'openclaw';
 
     // Ensure org and user exist
@@ -45,17 +121,82 @@ externalMetricsRouter.post('/', async (req, res) => {
     await findOrCreateUser(device.user_id, device.email, device.name, device.org_id);
 
     // Save the external metrics
-    const snapshot = await saveExternalMetrics(device.user_id, device.org_id, source, metrics);
+    const snapshot = await saveExternalMetrics(device.user_id, device.org_id, source, normalizedMetrics);
 
     res.json({
       success: true,
       snapshotId: snapshot.id,
       source,
       message: 'External metrics received',
+      normalized: normalizedMetrics.usage, // Return normalized data for debugging
     });
   } catch (error) {
     console.error('Failed to save external metrics:', error);
     res.status(500).json({ error: 'Failed to save external metrics' });
+  }
+});
+
+// POST /api/metrics/external/daily - Idempotent daily metrics upsert
+// This endpoint is used by Option A: reading from JSONL transcripts and sending daily summaries
+// The (user_id, date, source) combination acts as an idempotency key
+// Re-sending the same date replaces the values instead of accumulating
+externalMetricsRouter.post('/daily', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing authorization header' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Validate device token
+    const device = await validateDeviceToken(token);
+    if (!device) {
+      return res.status(401).json({ error: 'Invalid or revoked device token' });
+    }
+
+    const { date, usage } = req.body;
+
+    if (!date) {
+      return res.status(400).json({ error: 'Missing required field: date' });
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD' });
+    }
+
+    const source = device.source || 'openclaw';
+
+    // Ensure org and user exist
+    await findOrCreateOrg(device.org_id, device.org_name);
+    await findOrCreateUser(device.user_id, device.email, device.name, device.org_id);
+
+    // Upsert the daily metrics (replaces existing values for this date)
+    const result = await upsertDailyMetricsIdempotent(
+      device.user_id,
+      device.org_id,
+      source,
+      date,
+      usage || {}
+    );
+
+    res.json({
+      success: true,
+      date,
+      source,
+      message: 'Daily metrics saved (idempotent)',
+      metrics: {
+        sessions: result.claude_sessions,
+        messages: result.claude_messages,
+        tokens: result.claude_tokens,
+        tool_calls: result.claude_tool_calls,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to save daily metrics:', error);
+    res.status(500).json({ error: 'Failed to save daily metrics' });
   }
 });
 
@@ -194,6 +335,21 @@ router.get('/my-activity', async (req, res) => {
   } catch (error) {
     console.error('Failed to get user activity:', error);
     res.status(500).json({ error: 'Failed to get user activity' });
+  }
+});
+
+// GET /api/metrics/my-activity-by-source - Get current user's daily activity by source
+router.get('/my-activity-by-source', async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { days = 30 } = req.query;
+
+    const activity = await getUserDailyActivityBySource(userId, parseInt(days));
+
+    res.json({ activity });
+  } catch (error) {
+    console.error('Failed to get user activity by source:', error);
+    res.status(500).json({ error: 'Failed to get user activity by source' });
   }
 });
 
