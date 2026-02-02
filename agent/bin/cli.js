@@ -59,6 +59,7 @@ program
   .command('link')
   .description('Link external tools (OpenClaw, etc.) to your account')
   .option('-g, --generate', 'Generate a new linking code')
+  .option('-c, --connect <code>', 'Connect this device using a linking code')
   .option('-l, --list', 'List linked devices')
   .option('-r, --revoke <id>', 'Revoke a device token')
   .action(linkCommand);

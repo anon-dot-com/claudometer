@@ -1,10 +1,10 @@
 {
   "name": "claudometer",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Track engineering productivity metrics across Claude Code usage and Git activity",
   "main": "src/index.js",
   "bin": {
-    "claudometer": "./bin/cli.js"
+    "claudometer": "bin/cli.js"
   },
   "type": "module",
   "files": [
