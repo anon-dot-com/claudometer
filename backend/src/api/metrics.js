@@ -9,6 +9,7 @@ import {
   getOrgLeaderboard,
   getOrgDailyActivity,
   getUserDailyActivity,
+  getUserDailyActivityBySource,
   syncOrgMembersFromClerk,
   validateDeviceToken,
   saveExternalMetrics,
@@ -269,6 +270,21 @@ router.get('/my-activity', async (req, res) => {
   } catch (error) {
     console.error('Failed to get user activity:', error);
     res.status(500).json({ error: 'Failed to get user activity' });
+  }
+});
+
+// GET /api/metrics/my-activity-by-source - Get current user's daily activity by source
+router.get('/my-activity-by-source', async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { days = 30 } = req.query;
+
+    const activity = await getUserDailyActivityBySource(userId, parseInt(days));
+
+    res.json({ activity });
+  } catch (error) {
+    console.error('Failed to get user activity by source:', error);
+    res.status(500).json({ error: 'Failed to get user activity by source' });
   }
 });
 

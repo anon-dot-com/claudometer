@@ -3,30 +3,35 @@
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 
-interface ActivityData {
-  date: string;
+interface SourceData {
   claude_messages: number;
   claude_tokens: number;
   git_commits: number;
   git_lines_added: number;
 }
 
-type MetricType = "tokens" | "messages" | "commits" | "lines";
+interface ActivityData {
+  date: string;
+  first_party: SourceData;
+  third_party: SourceData;
+  total: SourceData;
+}
 
-const metricConfig: Record<MetricType, { label: string; dataKey: string; color: string; name: string }> = {
-  tokens: { label: "Tokens", dataKey: "claude_tokens", color: "#a855f7", name: "Tokens" },
-  messages: { label: "Messages", dataKey: "claude_messages", color: "#3b82f6", name: "Messages" },
-  commits: { label: "Commits", dataKey: "git_commits", color: "#22c55e", name: "Commits" },
-  lines: { label: "Lines", dataKey: "git_lines_added", color: "#f97316", name: "Lines Added" },
+type MetricType = "tokens" | "messages";
+
+const metricConfig: Record<MetricType, { label: string; key: keyof SourceData }> = {
+  tokens: { label: "Tokens", key: "claude_tokens" },
+  messages: { label: "Messages", key: "claude_messages" },
 };
 
 export function ActivityChart() {
@@ -42,7 +47,7 @@ export function ActivityChart() {
         if (!token) return;
 
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/my-activity?days=30`,
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/metrics/my-activity-by-source?days=30`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -67,11 +72,28 @@ export function ActivityChart() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
+  // Transform data for the chart
+  const chartData = data.map((day) => ({
+    date: day.date,
+    "First-party": day.first_party[metricConfig[metric].key] || 0,
+    "Third-party": day.third_party[metricConfig[metric].key] || 0,
+  }));
+
+  // Check if there's any third-party data
+  const hasThirdParty = data.some(
+    (day) => day.third_party.claude_tokens > 0 || day.third_party.claude_messages > 0
+  );
+
   return (
     <div className="bg-zinc-900 rounded-lg p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Activity (Last 30 Days)</h3>
-        <div className="flex gap-1 flex-wrap">
+        <div>
+          <h3 className="text-lg font-semibold text-white">Daily Activity (Last 30 Days)</h3>
+          <p className="text-xs text-zinc-500 mt-1">
+            First-party = Claude Code • Third-party = External tools
+          </p>
+        </div>
+        <div className="flex gap-1">
           {(Object.keys(metricConfig) as MetricType[]).map((key) => {
             const config = metricConfig[key];
             const isActive = metric === key;
@@ -81,10 +103,9 @@ export function ActivityChart() {
                 onClick={() => setMetric(key)}
                 className={`px-3 py-1 text-sm rounded transition-colors ${
                   isActive
-                    ? "text-white"
+                    ? "bg-purple-600 text-white"
                     : "bg-zinc-800 text-zinc-400 hover:text-zinc-300"
                 }`}
-                style={isActive ? { backgroundColor: `${config.color}33`, color: config.color } : {}}
               >
                 {config.label}
               </button>
@@ -104,15 +125,7 @@ export function ActivityChart() {
       ) : (
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data}>
-              <defs>
-                {(Object.keys(metricConfig) as MetricType[]).map((key) => (
-                  <linearGradient key={key} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={metricConfig[key].color} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={metricConfig[key].color} stopOpacity={0} />
-                  </linearGradient>
-                ))}
-              </defs>
+            <BarChart data={chartData} barCategoryGap="20%">
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis
                 dataKey="date"
@@ -128,19 +141,44 @@ export function ActivityChart() {
                   borderRadius: "8px",
                 }}
                 labelFormatter={formatDate}
+                formatter={(value: number) => [value.toLocaleString(), undefined]}
               />
-              <Area
-                type="monotone"
-                dataKey={metricConfig[metric].dataKey}
-                stroke={metricConfig[metric].color}
-                fillOpacity={1}
-                fill={`url(#color-${metric})`}
-                name={metricConfig[metric].name}
+              <Legend
+                wrapperStyle={{ paddingTop: "10px" }}
+                formatter={(value) => <span className="text-zinc-300 text-sm">{value}</span>}
               />
-            </AreaChart>
+              <Bar
+                dataKey="First-party"
+                stackId="a"
+                fill="#a855f7"
+                radius={[0, 0, 0, 0]}
+              />
+              {hasThirdParty && (
+                <Bar
+                  dataKey="Third-party"
+                  stackId="a"
+                  fill="#06b6d4"
+                  radius={[4, 4, 0, 0]}
+                />
+              )}
+            </BarChart>
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* Legend explanation */}
+      <div className="mt-4 flex gap-6 text-xs text-zinc-500">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-purple-500"></div>
+          <span>First-party (Claude Code)</span>
+        </div>
+        {hasThirdParty && (
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded bg-cyan-500"></div>
+            <span>Third-party (External tools)</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
