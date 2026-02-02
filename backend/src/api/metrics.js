@@ -18,46 +18,10 @@ import { clerk } from '../middleware/auth.js';
 
 const router = Router();
 
-// Helper to verify user is a member of an organization
-async function verifyOrgMembership(userId, orgId) {
-  try {
-    const memberships = await clerk.users.getOrganizationMembershipList({
-      userId,
-    });
-    return memberships.data.some(m => m.organization.id === orgId);
-  } catch (error) {
-    console.error('Failed to verify org membership:', error.message);
-    return false;
-  }
-}
+// Separate router for external metrics (uses device token auth, not Clerk)
+export const externalMetricsRouter = Router();
 
-// POST /api/metrics - Receive metrics from CLI
-router.post('/', async (req, res) => {
-  try {
-    const { userId, email, name, orgId, orgName } = req.auth;
-    const metrics = req.body;
-
-    // Ensure org and user exist
-    await findOrCreateOrg(orgId, orgName);
-    await findOrCreateUser(userId, email, name, orgId);
-
-    // Save the metrics snapshot
-    const snapshot = await saveMetricsSnapshot(userId, orgId, metrics);
-
-    res.json({
-      success: true,
-      snapshotId: snapshot.id,
-      message: 'Metrics received',
-    });
-  } catch (error) {
-    console.error('Failed to save metrics:', error);
-    res.status(500).json({ error: 'Failed to save metrics' });
-  }
-});
-
-// POST /api/metrics/external - Receive metrics from external tools (OpenClaw, etc.)
-// Uses device token authentication instead of Clerk
-router.post('/external', async (req, res) => {
+externalMetricsRouter.post('/', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -92,6 +56,43 @@ router.post('/external', async (req, res) => {
   } catch (error) {
     console.error('Failed to save external metrics:', error);
     res.status(500).json({ error: 'Failed to save external metrics' });
+  }
+});
+
+// Helper to verify user is a member of an organization
+async function verifyOrgMembership(userId, orgId) {
+  try {
+    const memberships = await clerk.users.getOrganizationMembershipList({
+      userId,
+    });
+    return memberships.data.some(m => m.organization.id === orgId);
+  } catch (error) {
+    console.error('Failed to verify org membership:', error.message);
+    return false;
+  }
+}
+
+// POST /api/metrics - Receive metrics from CLI
+router.post('/', async (req, res) => {
+  try {
+    const { userId, email, name, orgId, orgName } = req.auth;
+    const metrics = req.body;
+
+    // Ensure org and user exist
+    await findOrCreateOrg(orgId, orgName);
+    await findOrCreateUser(userId, email, name, orgId);
+
+    // Save the metrics snapshot
+    const snapshot = await saveMetricsSnapshot(userId, orgId, metrics);
+
+    res.json({
+      success: true,
+      snapshotId: snapshot.id,
+      message: 'Metrics received',
+    });
+  } catch (error) {
+    console.error('Failed to save metrics:', error);
+    res.status(500).json({ error: 'Failed to save metrics' });
   }
 });
 

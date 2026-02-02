@@ -7,7 +7,7 @@ import { devAuth, authenticateRequest } from './middleware/auth.js';
 
 // Use real auth in production, dev auth in development
 const authMiddleware = process.env.NODE_ENV === 'production' ? authenticateRequest : devAuth;
-import metricsRouter from './api/metrics.js';
+import metricsRouter, { externalMetricsRouter } from './api/metrics.js';
 import authRouter from './api/auth.js';
 import joinRequestsRouter from './api/join-requests.js';
 
@@ -42,6 +42,9 @@ app.get('/health', (req, res) => {
 
 // Auth routes (public)
 app.use('/auth', authRouter);
+
+// External metrics route (uses device token auth, not Clerk auth)
+app.use('/api/metrics/external', externalMetricsRouter);
 
 // Protected API routes
 app.use('/api/metrics', authMiddleware, metricsRouter);
