@@ -266,15 +266,15 @@ async function saveDailyMetrics(userId, orgId, metrics) {
     dailyData[day.date].git_lines_deleted += day.linesDeleted || 0;
   }
 
-  // Upsert daily metrics
+  // Upsert daily metrics (source defaults to 'claude_code')
   for (const [date, data] of Object.entries(dailyData)) {
     await db.query(
       `INSERT INTO daily_metrics (
-        user_id, org_id, date,
+        user_id, org_id, date, source,
         claude_sessions, claude_messages, claude_tokens, claude_tool_calls,
         git_commits, git_lines_added, git_lines_deleted
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      ON CONFLICT (user_id, date) DO UPDATE SET
+      ) VALUES ($1, $2, $3, 'claude_code', $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (user_id, date, source) DO UPDATE SET
         claude_sessions = $4,
         claude_messages = $5,
         claude_tokens = $6,
