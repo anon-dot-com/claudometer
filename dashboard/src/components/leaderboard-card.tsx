@@ -8,6 +8,8 @@ interface LeaderboardEntry {
   name: string;
   email: string;
   value: number;
+  first_party?: number;
+  third_party?: number;
   reported_at?: string;
 }
 
@@ -67,6 +69,11 @@ export function LeaderboardCard({ title, metric, entries, loading }: Leaderboard
         <div className="space-y-3">
           {entries.slice(0, 10).map((entry, index) => {
             const percentage = maxValue > 0 ? (entry.value / maxValue) * 100 : 0;
+            const firstParty = Number(entry.first_party) || 0;
+            const thirdParty = Number(entry.third_party) || 0;
+            const hasMultipleSources = firstParty > 0 && thirdParty > 0;
+            const firstPartyPct = entry.value > 0 ? (firstParty / entry.value) * percentage : 0;
+            const thirdPartyPct = entry.value > 0 ? (thirdParty / entry.value) * percentage : 0;
 
             return (
               <div key={entry.id} className="space-y-1.5">
@@ -88,24 +95,61 @@ export function LeaderboardCard({ title, metric, entries, loading }: Leaderboard
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      index === 0
-                        ? "bg-gradient-to-r from-purple-600 to-purple-400"
-                        : index === 1
-                        ? "bg-zinc-500"
-                        : index === 2
-                        ? "bg-orange-600/70"
-                        : "bg-zinc-600"
-                    }`}
-                    style={{ width: `${percentage}%` }}
-                  />
+                {/* Stacked progress bar showing first-party vs third-party */}
+                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
+                  {hasMultipleSources ? (
+                    <>
+                      {/* First-party (Claude Code) - purple */}
+                      <div
+                        className={`h-full transition-all duration-500 ${
+                          index === 0
+                            ? "bg-purple-500"
+                            : index === 1
+                            ? "bg-zinc-500"
+                            : index === 2
+                            ? "bg-orange-600/70"
+                            : "bg-zinc-600"
+                        }`}
+                        style={{ width: `${firstPartyPct}%` }}
+                      />
+                      {/* Third-party (OpenClaw, etc.) - teal */}
+                      <div
+                        className="h-full bg-teal-500 transition-all duration-500"
+                        style={{ width: `${thirdPartyPct}%` }}
+                      />
+                    </>
+                  ) : (
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        index === 0
+                          ? "bg-gradient-to-r from-purple-600 to-purple-400"
+                          : index === 1
+                          ? "bg-zinc-500"
+                          : index === 2
+                          ? "bg-orange-600/70"
+                          : "bg-zinc-600"
+                      }`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  )}
                 </div>
 
+                {/* Source breakdown (only show if both sources have data) */}
+                {hasMultipleSources && (
+                  <div className="flex items-center gap-3 pl-10 text-xs">
+                    <span className="text-zinc-400">
+                      <span className="inline-block w-2 h-2 rounded-full bg-purple-500 mr-1" />
+                      Claude Code: {formatValue(firstParty)}
+                    </span>
+                    <span className="text-zinc-400">
+                      <span className="inline-block w-2 h-2 rounded-full bg-teal-500 mr-1" />
+                      3rd party: {formatValue(thirdParty)}
+                    </span>
+                  </div>
+                )}
+
                 {/* Last updated (subtle) */}
-                {entry.reported_at && (
+                {entry.reported_at && !hasMultipleSources && (
                   <div className="pl-10">
                     <LastUpdated timestamp={entry.reported_at} prefix="" />
                   </div>
