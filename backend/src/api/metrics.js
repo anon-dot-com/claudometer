@@ -14,6 +14,7 @@ import {
   validateDeviceToken,
   saveExternalMetrics,
   getUserMetricsBySource,
+  upsertDailyMetricsIdempotent,
 } from '../db/index.js';
 import { clerk } from '../middleware/auth.js';
 
@@ -132,6 +133,70 @@ externalMetricsRouter.post('/', async (req, res) => {
   } catch (error) {
     console.error('Failed to save external metrics:', error);
     res.status(500).json({ error: 'Failed to save external metrics' });
+  }
+});
+
+// POST /api/metrics/external/daily - Idempotent daily metrics upsert
+// This endpoint is used by Option A: reading from JSONL transcripts and sending daily summaries
+// The (user_id, date, source) combination acts as an idempotency key
+// Re-sending the same date replaces the values instead of accumulating
+externalMetricsRouter.post('/daily', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing authorization header' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Validate device token
+    const device = await validateDeviceToken(token);
+    if (!device) {
+      return res.status(401).json({ error: 'Invalid or revoked device token' });
+    }
+
+    const { date, usage } = req.body;
+
+    if (!date) {
+      return res.status(400).json({ error: 'Missing required field: date' });
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD' });
+    }
+
+    const source = device.source || 'openclaw';
+
+    // Ensure org and user exist
+    await findOrCreateOrg(device.org_id, device.org_name);
+    await findOrCreateUser(device.user_id, device.email, device.name, device.org_id);
+
+    // Upsert the daily metrics (replaces existing values for this date)
+    const result = await upsertDailyMetricsIdempotent(
+      device.user_id,
+      device.org_id,
+      source,
+      date,
+      usage || {}
+    );
+
+    res.json({
+      success: true,
+      date,
+      source,
+      message: 'Daily metrics saved (idempotent)',
+      metrics: {
+        sessions: result.claude_sessions,
+        messages: result.claude_messages,
+        tokens: result.claude_tokens,
+        tool_calls: result.claude_tool_calls,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to save daily metrics:', error);
+    res.status(500).json({ error: 'Failed to save daily metrics' });
   }
 });
 

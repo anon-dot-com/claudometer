@@ -850,4 +850,37 @@ export async function getUserMetricsBySource(userId, period = 'all') {
   return result.rows;
 }
 
+// Upsert daily metrics idempotently (replaces values instead of accumulating)
+// This is used for Option A: reading from source (JSONL transcripts) and sending daily summaries
+// The key is (user_id, date, source) - if the same date is reported twice, it replaces the values
+export async function upsertDailyMetricsIdempotent(userId, orgId, source, date, metrics) {
+  const tokens = (metrics.input_tokens || 0) + (metrics.output_tokens || 0);
+
+  const result = await db.query(
+    `INSERT INTO daily_metrics (
+      user_id, org_id, date, source,
+      claude_sessions, claude_messages, claude_tokens, claude_tool_calls
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    ON CONFLICT (user_id, date, source) DO UPDATE SET
+      org_id = $2,
+      claude_sessions = $5,
+      claude_messages = $6,
+      claude_tokens = $7,
+      claude_tool_calls = $8,
+      updated_at = NOW()
+    RETURNING *`,
+    [
+      userId,
+      orgId,
+      date,
+      source,
+      metrics.sessions || 0,
+      metrics.messages || 0,
+      tokens,
+      metrics.tool_calls || 0,
+    ]
+  );
+  return result.rows[0];
+}
+
 export default db;
