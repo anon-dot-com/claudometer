@@ -2,6 +2,7 @@
 
 import { program } from 'commander';
 import chalk from 'chalk';
+import { createRequire } from 'module';
 import { loginCommand } from '../src/commands/login.js';
 import { logoutCommand } from '../src/commands/logout.js';
 import { startCommand } from '../src/commands/start.js';
@@ -11,10 +12,13 @@ import { collectCommand } from '../src/commands/collect.js';
 import { setupCommand } from '../src/commands/setup.js';
 import { linkCommand } from '../src/commands/link.js';
 
+const require = createRequire(import.meta.url);
+const { version } = require('../package.json');
+
 program
   .name('claudometer')
   .description('Measure engineering productivity across Claude and Git')
-  .version('0.1.0');
+  .version(version);
 
 program
   .command('login')
