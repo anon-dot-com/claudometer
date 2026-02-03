@@ -147,6 +147,31 @@ export function GetStartedPage() {
             </button>
           </div>
         </div>
+
+        <div className="mt-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+          <h4 className="text-sm font-medium text-zinc-300 mb-2">
+            Updating the CLI
+          </h4>
+          <p className="text-xs text-zinc-500 mb-3">
+            To update to the latest version, run:
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
+              npm update -g claudometer
+            </code>
+            <button
+              onClick={() =>
+                copyToClipboard("npm update -g claudometer", "update")
+              }
+              className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm flex-shrink-0"
+            >
+              {copiedItem === "update" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="text-xs text-zinc-500 mt-2">
+            Check your version with <code className="text-green-400">claudometer --version</code>
+          </p>
+        </div>
       </div>
 
       {/* Secondary device / OpenClaw setup */}
