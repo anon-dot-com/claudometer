@@ -38,10 +38,11 @@ export async function linkCommand(options) {
     console.log(`  ${chalk.cyan('claudometer link --connect <CODE>')}  Connect this device using a code`);
     console.log(`  ${chalk.cyan('claudometer link --list')}            List linked devices`);
     console.log(`  ${chalk.cyan('claudometer link --revoke <id>')}     Revoke a device token\n`);
-    console.log('Example workflow for secondary devices (OpenClaw bots):');
-    console.log(`  1. On primary device: ${chalk.cyan('claudometer link --generate')}`);
-    console.log(`  2. On secondary device: ${chalk.cyan('claudometer link --connect <CODE>')}`);
-    console.log(`  3. Run ${chalk.cyan('claudometer collect')} on either device\n`);
+    console.log('Example workflow for secondary devices (OpenClaw, MoldBot, etc.):');
+    console.log(`  1. On this device:      ${chalk.cyan('claudometer link --generate')}`);
+    console.log(`  2. On secondary device: ${chalk.cyan('npm install -g claudometer')}`);
+    console.log(`  3. On secondary device: ${chalk.cyan('claudometer link --connect <CODE>')}`);
+    console.log(`  4. On secondary device: ${chalk.cyan('claudometer collect')}\n`);
   }
 }
 
@@ -128,10 +129,10 @@ async function generateLinkingCode(config) {
 
     console.log(`\n${chalk.bold('Linking Code:')} ${chalk.green.bold(data.code)}`);
     console.log(`${chalk.dim(`Expires: ${new Date(data.expiresAt).toLocaleString()} (${data.expiresIn})`)}`);
-    console.log(`\n${chalk.bold('To link OpenClaw:')}`);
-    console.log(`  ${chalk.cyan(`openclaw claudometer link ${data.code}`)}`);
-    console.log(`\n${chalk.dim('Or in OpenClaw chat:')}`);
-    console.log(`  ${chalk.cyan(`/claudometer link ${data.code}`)}\n`);
+    console.log(`\n${chalk.bold('On secondary device:')}`);
+    console.log(`  ${chalk.cyan(`npm install -g claudometer`)}`);
+    console.log(`  ${chalk.cyan(`claudometer link --connect ${data.code}`)}`);
+    console.log(`  ${chalk.cyan(`claudometer collect`)}\n`);
   } catch (error) {
     spinner.fail('Failed to generate code');
     console.log(chalk.red(`\nError: ${error.message}`));
