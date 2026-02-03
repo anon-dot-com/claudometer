@@ -1,133 +1,198 @@
-import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { readdir } from 'fs/promises';
+import { existsSync, createReadStream } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
+import * as readline from 'readline';
 
-const STATS_CACHE_PATH = join(homedir(), '.claude', 'stats-cache.json');
+// Claude Code stores session transcripts in ~/.claude/projects/{project-path}/*.jsonl
+const CLAUDE_PROJECTS_PATH = join(homedir(), '.claude', 'projects');
 
 export async function collectClaudeMetrics() {
-  if (!existsSync(STATS_CACHE_PATH)) {
+  if (!existsSync(CLAUDE_PROJECTS_PATH)) {
     return {
       available: false,
-      error: 'Claude stats file not found. Is Claude Code installed?',
+      error: 'Claude Code projects directory not found. Is Claude Code installed?',
     };
   }
 
   try {
-    const raw = await readFile(STATS_CACHE_PATH, 'utf-8');
-    const stats = JSON.parse(raw);
+    // Find all JSONL files across all projects
+    const jsonlFiles = [];
+    const projectDirs = await readdir(CLAUDE_PROJECTS_PATH);
 
-    // Calculate totals from modelUsage
-    const totals = calculateTotals(stats.modelUsage || {});
+    for (const projectDir of projectDirs) {
+      const projectPath = join(CLAUDE_PROJECTS_PATH, projectDir);
+      try {
+        const files = await readdir(projectPath);
+        for (const file of files) {
+          if (file.endsWith('.jsonl')) {
+            jsonlFiles.push(join(projectPath, file));
+          }
+        }
+      } catch {
+        // Ignore permission errors, etc.
+      }
+    }
 
-    // Extract relevant metrics
-    const metrics = {
+    if (jsonlFiles.length === 0) {
+      return {
+        available: false,
+        error: 'No Claude Code session files found.',
+      };
+    }
+
+    // Parse all JSONL files and aggregate by date
+    const dailyMap = new Map();
+    const modelUsage = {};
+    let totalMessages = 0;
+    let totalInput = 0;
+    let totalOutput = 0;
+    let totalCacheRead = 0;
+    let totalCacheCreation = 0;
+    let totalToolCalls = 0;
+    const allSessions = new Set();
+
+    for (const filePath of jsonlFiles) {
+      // Session ID is the filename without .jsonl
+      const sessionId = filePath.split('/').pop().replace('.jsonl', '');
+      allSessions.add(sessionId);
+
+      try {
+        const messages = await parseJsonlFile(filePath);
+
+        for (const msg of messages) {
+          if (!msg.timestamp || !msg.message?.usage) continue;
+
+          const date = msg.timestamp.split('T')[0];
+          const usage = msg.message.usage;
+          const model = msg.message.model || 'unknown';
+
+          // Get or create daily entry
+          let daily = dailyMap.get(date);
+          if (!daily) {
+            daily = {
+              sessions: new Set(),
+              messages: 0,
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cacheCreationTokens: 0,
+              toolCalls: 0,
+            };
+            dailyMap.set(date, daily);
+          }
+
+          // Add session to this day
+          daily.sessions.add(sessionId);
+
+          // Accumulate token counts
+          const inputTokens = usage.input_tokens || 0;
+          const outputTokens = usage.output_tokens || 0;
+          const cacheReadTokens = usage.cache_read_input_tokens || 0;
+          const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+
+          daily.messages++;
+          daily.inputTokens += inputTokens;
+          daily.outputTokens += outputTokens;
+          daily.cacheReadTokens += cacheReadTokens;
+          daily.cacheCreationTokens += cacheCreationTokens;
+
+          // Track tool calls (count tool_use content blocks in assistant messages)
+          if (msg.message?.content && Array.isArray(msg.message.content)) {
+            for (const block of msg.message.content) {
+              if (block.type === 'tool_use') {
+                daily.toolCalls++;
+                totalToolCalls++;
+              }
+            }
+          }
+
+          // Update totals
+          totalMessages++;
+          totalInput += inputTokens;
+          totalOutput += outputTokens;
+          totalCacheRead += cacheReadTokens;
+          totalCacheCreation += cacheCreationTokens;
+
+          // Update model usage
+          if (!modelUsage[model]) {
+            modelUsage[model] = { inputTokens: 0, outputTokens: 0 };
+          }
+          modelUsage[model].inputTokens += inputTokens;
+          modelUsage[model].outputTokens += outputTokens;
+        }
+      } catch (error) {
+        // Skip files we can't parse
+        console.warn(`Failed to parse ${filePath}:`, error.message);
+      }
+    }
+
+    // Convert daily map to sorted array (last 30 days)
+    const daily = Array.from(dailyMap.entries())
+      .map(([date, stats]) => ({
+        date,
+        sessions: stats.sessions.size,
+        messages: stats.messages,
+        tokens: stats.inputTokens + stats.outputTokens,
+        toolCalls: stats.toolCalls,
+        tokensByModel: {},
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30);
+
+    return {
       available: true,
       collectedAt: new Date().toISOString(),
+      source: 'claude_code',
 
-      // Totals
       totals: {
-        sessions: stats.totalSessions || 0,
-        messages: stats.totalMessages || 0,
-        inputTokens: totals.inputTokens,
-        outputTokens: totals.outputTokens,
-        cacheReadTokens: totals.cacheReadTokens,
-        cacheCreationTokens: totals.cacheCreationTokens,
-        toolCalls: calculateTotalToolCalls(stats.dailyActivity || []),
+        sessions: allSessions.size,
+        messages: totalMessages,
+        inputTokens: totalInput,
+        outputTokens: totalOutput,
+        cacheReadTokens: totalCacheRead,
+        cacheCreationTokens: totalCacheCreation,
+        toolCalls: totalToolCalls,
       },
 
-      // Per-model breakdown
-      byModel: stats.modelUsage || {},
-
-      // Daily stats (last 30 days)
-      daily: extractDailyStats(stats),
-
-      // Usage patterns
-      patterns: {
-        hourlyDistribution: stats.hourCounts || {},
-      },
-
-      // Metadata
-      firstSessionDate: stats.firstSessionDate,
-      lastComputedDate: stats.lastComputedDate,
+      byModel: modelUsage,
+      daily,
     };
-
-    return metrics;
   } catch (error) {
     return {
       available: false,
-      error: `Failed to read Claude stats: ${error.message}`,
+      error: `Failed to read Claude Code stats: ${error.message}`,
     };
   }
 }
 
-function calculateTotals(modelUsage) {
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cacheReadTokens = 0;
-  let cacheCreationTokens = 0;
+async function parseJsonlFile(filePath) {
+  const messages = [];
 
-  for (const model of Object.values(modelUsage)) {
-    inputTokens += model.inputTokens || 0;
-    outputTokens += model.outputTokens || 0;
-    cacheReadTokens += model.cacheReadInputTokens || 0;
-    cacheCreationTokens += model.cacheCreationInputTokens || 0;
-  }
+  const fileStream = createReadStream(filePath, { encoding: 'utf-8' });
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
 
-  return { inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens };
-}
+  for await (const line of rl) {
+    if (!line.trim()) continue;
 
-function calculateTotalToolCalls(dailyActivity) {
-  return dailyActivity.reduce((sum, day) => sum + (day.toolCallCount || 0), 0);
-}
-
-function extractDailyStats(stats) {
-  const daily = [];
-
-  // Use dailyActivity for messages/sessions/tools
-  const activityByDate = {};
-  for (const day of stats.dailyActivity || []) {
-    activityByDate[day.date] = day;
-  }
-
-  // Use dailyModelTokens for token counts
-  const tokensByDate = {};
-  for (const day of stats.dailyModelTokens || []) {
-    let totalTokens = 0;
-    for (const tokens of Object.values(day.tokensByModel || {})) {
-      totalTokens += tokens;
+    try {
+      const msg = JSON.parse(line);
+      // Claude Code format: type='assistant' with message.role='assistant' and message.usage
+      if (msg.type === 'assistant' && msg.message?.usage) {
+        messages.push(msg);
+      }
+    } catch {
+      // Skip malformed lines
     }
-    tokensByDate[day.date] = { totalTokens, byModel: day.tokensByModel };
   }
 
-  // Merge all dates
-  const allDates = new Set([
-    ...Object.keys(activityByDate),
-    ...Object.keys(tokensByDate),
-  ]);
-
-  for (const date of Array.from(allDates).sort().slice(-30)) {
-    const activity = activityByDate[date] || {};
-    const tokens = tokensByDate[date] || {};
-
-    daily.push({
-      date,
-      messages: activity.messageCount || 0,
-      sessions: activity.sessionCount || 0,
-      toolCalls: activity.toolCallCount || 0,
-      tokens: tokens.totalTokens || 0,
-      tokensByModel: tokens.byModel || {},
-    });
-  }
-
-  return daily;
+  return messages;
 }
 
-// Get the raw stats file for debugging
-export async function getRawClaudeStats() {
-  if (!existsSync(STATS_CACHE_PATH)) {
-    return null;
-  }
-  const raw = await readFile(STATS_CACHE_PATH, 'utf-8');
-  return JSON.parse(raw);
+// Check if Claude Code is available
+export function isClaudeCodeAvailable() {
+  return existsSync(CLAUDE_PROJECTS_PATH);
 }
