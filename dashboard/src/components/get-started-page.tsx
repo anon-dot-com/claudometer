@@ -15,177 +15,231 @@ export function GetStartedPage() {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h2 className="text-2xl font-bold text-white mb-2">Get Started</h2>
       <p className="text-zinc-400 mb-8">
-        Install the CLI to start tracking your Claude Code and Git activity.
+        Track your Claude Code and Git activity. Choose your setup below.
       </p>
 
-      <div className="bg-zinc-900 rounded-lg p-6">
-        <div className="space-y-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-sm font-bold">
-                1
-              </span>
-              <label className="text-base font-medium text-white">
-                Install the CLI
-              </label>
-            </div>
-            <p className="text-sm text-zinc-500 mb-2 ml-8">
-              Requires Node.js 18 or higher
-            </p>
-            <div className="ml-8 flex items-center gap-2">
-              <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
-                npm install -g claudometer
-              </code>
-              <button
-                onClick={() =>
-                  copyToClipboard("npm install -g claudometer", "install")
-                }
-                className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
-              >
-                {copiedItem === "install" ? "Copied!" : "Copy"}
-              </button>
-            </div>
+      {/* Quickstart Options */}
+      <div className="grid gap-6 md:grid-cols-2 mb-8">
+        {/* Claude Code Only */}
+        <div className="bg-zinc-900 rounded-lg p-6 border-2 border-purple-600">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2 py-0.5 rounded bg-purple-600 text-white text-xs font-medium">
+              Quickstart
+            </span>
           </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-sm font-bold">
-                2
-              </span>
-              <label className="text-base font-medium text-white">
-                Login to Claudometer
-              </label>
-            </div>
-            <p className="text-sm text-zinc-500 mb-2 ml-8">
-              Opens your browser to sign in
-            </p>
-            <div className="ml-8 flex items-center gap-2">
-              <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
-                claudometer login
-              </code>
-              <button
-                onClick={() => copyToClipboard("claudometer login", "login")}
-                className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
-              >
-                {copiedItem === "login" ? "Copied!" : "Copy"}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-sm font-bold">
-                3
-              </span>
-              <label className="text-base font-medium text-white">
-                Sync your metrics
-              </label>
-            </div>
-            <p className="text-sm text-zinc-500 mb-2 ml-8">
-              Upload your Claude Code and Git activity
-            </p>
-            <div className="ml-8 flex items-center gap-2">
-              <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
-                claudometer collect
-              </code>
-              <button
-                onClick={() => copyToClipboard("claudometer collect", "collect")}
-                className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
-              >
-                {copiedItem === "collect" ? "Copied!" : "Copy"}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-700 text-zinc-300 text-sm font-bold">
-                4
-              </span>
-              <label className="text-base font-medium text-zinc-300">
-                Enable auto-sync (optional)
-              </label>
-            </div>
-            <p className="text-sm text-zinc-500 mb-2 ml-8">
-              Automatically syncs every 30 minutes (macOS)
-            </p>
-            <div className="ml-8 flex items-center gap-2">
-              <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
-                claudometer setup
-              </code>
-              <button
-                onClick={() => copyToClipboard("claudometer setup", "setup")}
-                className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
-              >
-                {copiedItem === "setup" ? "Copied!" : "Copy"}
-              </button>
+          <h3 className="text-lg font-bold text-white mb-2">Claude Code Only</h3>
+          <p className="text-sm text-zinc-400 mb-4">
+            Track usage on this machine only
+          </p>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Run this command:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
+                  npm i -g claudometer && claudometer login && claudometer collect
+                </code>
+                <button
+                  onClick={() =>
+                    copyToClipboard(
+                      "npm i -g claudometer && claudometer login && claudometer collect",
+                      "quick-local"
+                    )
+                  }
+                  className="px-3 py-2 bg-purple-600 rounded text-white text-xs hover:bg-purple-700 transition-colors flex-shrink-0"
+                >
+                  {copiedItem === "quick-local" ? "Copied!" : "Copy"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-          <h4 className="text-sm font-medium text-zinc-300 mb-2">
-            Quick start
-          </h4>
-          <p className="text-xs text-zinc-500 mb-3">
-            Run this single command to install, login, and sync:
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
-              npm i -g claudometer && claudometer login && claudometer collect
-            </code>
-            <button
-              onClick={() =>
-                copyToClipboard(
-                  "npm i -g claudometer && claudometer login && claudometer collect",
-                  "quick"
-                )
-              }
-              className="px-3 py-2 bg-purple-600 rounded text-white text-sm hover:bg-purple-700 transition-colors flex-shrink-0"
-            >
-              {copiedItem === "quick" ? "Copied!" : "Copy"}
-            </button>
+        {/* Claude Code + OpenClaw */}
+        <div className="bg-zinc-900 rounded-lg p-6 border-2 border-teal-600">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2 py-0.5 rounded bg-teal-600 text-white text-xs font-medium">
+              Quickstart
+            </span>
           </div>
-        </div>
-
-        <div className="mt-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-          <h4 className="text-sm font-medium text-zinc-300 mb-2">
-            Updating the CLI
-          </h4>
-          <p className="text-xs text-zinc-500 mb-3">
-            To update to the latest version, run:
+          <h3 className="text-lg font-bold text-white mb-2">Claude Code + OpenClaw</h3>
+          <p className="text-sm text-zinc-400 mb-4">
+            Track this machine + a server running OpenClaw
           </p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
-              npm update -g claudometer
-            </code>
-            <button
-              onClick={() =>
-                copyToClipboard("npm update -g claudometer", "update")
-              }
-              className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm flex-shrink-0"
-            >
-              {copiedItem === "update" ? "Copied!" : "Copy"}
-            </button>
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">
+                <span className="text-purple-400 font-medium">Step 1:</span> Run on this machine:
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
+                  npm i -g claudometer && claudometer login && claudometer link --generate
+                </code>
+                <button
+                  onClick={() =>
+                    copyToClipboard(
+                      "npm i -g claudometer && claudometer login && claudometer link --generate",
+                      "quick-primary"
+                    )
+                  }
+                  className="px-3 py-2 bg-purple-600 rounded text-white text-xs hover:bg-purple-700 transition-colors flex-shrink-0"
+                >
+                  {copiedItem === "quick-primary" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">
+                <span className="text-teal-400 font-medium">Step 2:</span> Send this to your OpenClaw server (replace CODE):
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
+                  npm i -g claudometer && claudometer link --connect CODE && claudometer collect
+                </code>
+                <button
+                  onClick={() =>
+                    copyToClipboard(
+                      "npm i -g claudometer && claudometer link --connect CODE && claudometer collect",
+                      "quick-secondary"
+                    )
+                  }
+                  className="px-3 py-2 bg-teal-600 rounded text-white text-xs hover:bg-teal-700 transition-colors flex-shrink-0"
+                >
+                  {copiedItem === "quick-secondary" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-zinc-500 mt-2">
-            Check your version with <code className="text-green-400">claudometer --version</code>
-          </p>
         </div>
       </div>
 
-      {/* Secondary device / OpenClaw setup */}
-      <div className="mt-8">
-        <h3 className="text-xl font-bold text-white mb-2">
-          Track OpenClaw / 3rd Party Usage
-        </h3>
-        <p className="text-zinc-400 mb-6">
-          Have a secondary machine running OpenClaw, MoldBot, or other Claude tools? Link it to your account to see all your usage in one place.
-        </p>
+      {/* Detailed Instructions - Collapsed by default */}
+      <details className="group">
+        <summary className="cursor-pointer text-zinc-400 hover:text-white transition-colors mb-4 flex items-center gap-2">
+          <svg
+            className="w-4 h-4 transition-transform group-open:rotate-90"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          View detailed step-by-step instructions
+        </summary>
 
-        <div className="bg-zinc-900 rounded-lg p-6">
+        <div className="bg-zinc-900 rounded-lg p-6 mb-6">
+          <h3 className="text-lg font-bold text-white mb-4">Claude Code Setup (This Machine)</h3>
           <div className="space-y-6">
-            {/* Step A: Generate code on primary */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-sm font-bold">
+                  1
+                </span>
+                <label className="text-base font-medium text-white">
+                  Install the CLI
+                </label>
+              </div>
+              <p className="text-sm text-zinc-500 mb-2 ml-8">
+                Requires Node.js 18 or higher
+              </p>
+              <div className="ml-8 flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
+                  npm install -g claudometer
+                </code>
+                <button
+                  onClick={() =>
+                    copyToClipboard("npm install -g claudometer", "install")
+                  }
+                  className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
+                >
+                  {copiedItem === "install" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-sm font-bold">
+                  2
+                </span>
+                <label className="text-base font-medium text-white">
+                  Login to Claudometer
+                </label>
+              </div>
+              <p className="text-sm text-zinc-500 mb-2 ml-8">
+                Opens your browser to sign in
+              </p>
+              <div className="ml-8 flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
+                  claudometer login
+                </code>
+                <button
+                  onClick={() => copyToClipboard("claudometer login", "login")}
+                  className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
+                >
+                  {copiedItem === "login" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-sm font-bold">
+                  3
+                </span>
+                <label className="text-base font-medium text-white">
+                  Sync your metrics
+                </label>
+              </div>
+              <p className="text-sm text-zinc-500 mb-2 ml-8">
+                Upload your Claude Code and Git activity
+              </p>
+              <div className="ml-8 flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
+                  claudometer collect
+                </code>
+                <button
+                  onClick={() => copyToClipboard("claudometer collect", "collect")}
+                  className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
+                >
+                  {copiedItem === "collect" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-700 text-zinc-300 text-sm font-bold">
+                  4
+                </span>
+                <label className="text-base font-medium text-zinc-300">
+                  Enable auto-sync (optional)
+                </label>
+              </div>
+              <p className="text-sm text-zinc-500 mb-2 ml-8">
+                Automatically syncs every 30 minutes (macOS)
+              </p>
+              <div className="ml-8 flex items-center gap-2">
+                <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-sm text-green-400 font-mono">
+                  claudometer setup
+                </code>
+                <button
+                  onClick={() => copyToClipboard("claudometer setup", "setup")}
+                  className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm"
+                >
+                  {copiedItem === "setup" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* OpenClaw Setup */}
+        <div className="bg-zinc-900 rounded-lg p-6">
+          <h3 className="text-lg font-bold text-white mb-2">OpenClaw / 3rd Party Setup</h3>
+          <p className="text-sm text-zinc-400 mb-4">
+            Link a secondary machine running OpenClaw, MoldBot, or other Claude tools.
+          </p>
+          <div className="space-y-6">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm font-bold">
@@ -214,7 +268,6 @@ export function GetStartedPage() {
               </div>
             </div>
 
-            {/* Step B: Install on secondary */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm font-bold">
@@ -242,7 +295,6 @@ export function GetStartedPage() {
               </div>
             </div>
 
-            {/* Step C: Connect with code */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm font-bold">
@@ -271,7 +323,6 @@ export function GetStartedPage() {
               </div>
             </div>
 
-            {/* Step D: Collect */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm font-bold">
@@ -307,6 +358,32 @@ export function GetStartedPage() {
             </p>
           </div>
         </div>
+      </details>
+
+      {/* Update CLI */}
+      <div className="mt-6 p-4 bg-zinc-900 rounded-lg border border-zinc-700">
+        <h4 className="text-sm font-medium text-zinc-300 mb-2">
+          Updating the CLI
+        </h4>
+        <p className="text-xs text-zinc-500 mb-3">
+          To update to the latest version:
+        </p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
+            npm update -g claudometer
+          </code>
+          <button
+            onClick={() =>
+              copyToClipboard("npm update -g claudometer", "update")
+            }
+            className="px-3 py-2 bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors text-sm flex-shrink-0"
+          >
+            {copiedItem === "update" ? "Copied!" : "Copy"}
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500 mt-2">
+          Check your version with <code className="text-green-400">claudometer --version</code>
+        </p>
       </div>
     </div>
   );
