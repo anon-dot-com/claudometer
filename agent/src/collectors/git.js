@@ -12,8 +12,10 @@ const DEFAULT_SCAN_PATHS = [
   join(homedir(), 'src'),
   join(homedir(), 'repos'),
   join(homedir(), 'workspace'),
+  join(homedir(), 'workspaces'),
   join(homedir(), 'Github'),
   join(homedir(), 'Documents', 'Github'),
+  join(homedir(), 'conductor'),
 ];
 
 export async function collectGitMetrics(options = {}) {
