@@ -1,5 +1,39 @@
 import { getConfig, updateConfig } from './config.js';
 
+/**
+ * Reset daily metrics for the current user
+ * This deletes all daily_metrics rows and allows re-syncing from scratch
+ */
+export async function resetMetrics(source = null) {
+  const config = await getConfig();
+
+  if (!config.token) {
+    throw new Error('Not authenticated. Run `claudometer login` first.');
+  }
+
+  const url = new URL(`${config.apiUrl}/api/metrics/reset`);
+  if (source) {
+    url.searchParams.set('source', source);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Authentication expired. Run `claudometer login` again.');
+    }
+    const error = await response.text();
+    throw new Error(`Server error: ${response.status} ${error}`);
+  }
+
+  return response.json();
+}
+
 export async function reportMetrics(metrics) {
   const config = await getConfig();
 
