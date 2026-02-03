@@ -75,6 +75,7 @@ claudometer --version
 | `claudometer link --connect <code>` | Connect a secondary device using a code |
 | `claudometer link --list` | List linked devices |
 | `claudometer link --revoke <id>` | Revoke a device token |
+| `claudometer brag` | Show your stats in a shareable format |
 
 ## Using with OpenClaw / Third-Party Tools
 

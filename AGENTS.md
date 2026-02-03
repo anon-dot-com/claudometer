@@ -56,6 +56,58 @@ That's it! Your metrics will now sync automatically.
 | `claudometer collect` | Manually sync your metrics right now |
 | `claudometer collect --dry-run` | Preview what would be synced (no upload) |
 | `claudometer status` | Check your connection status |
+| `claudometer brag` | Show your stats in a shareable format |
+
+## Brag About Your Stats
+
+Want to flex? Run:
+
+```bash
+claudometer brag
+```
+
+Output:
+```
+🏆 Agent Stats
+
+   User: Daniel Mason
+   Org:  Anon
+
+   This Week
+   2.1M tokens across 45 sessions
+   └─ 1.5M first-party, 600K third-party
+
+   All Time
+   12.4M tokens, 890 messages
+
+   🥇 Rank #3 in Anon
+
+   ─────────────────────────────────
+   Share this:
+   "This week: 2.1M tokens across 45 sessions"
+   📊 claudometer.ai
+```
+
+## API Access
+
+Want to query your stats programmatically? Use your device token:
+
+```bash
+curl -H "Authorization: Bearer $(cat ~/.config/claudometer-nodejs/config.json | jq -r .deviceToken)" \
+  https://api.claudometer.ai/api/metrics/external/me
+```
+
+Response:
+```json
+{
+  "user": "Daniel Mason",
+  "org": "Anon",
+  "today": { "tokens": 50000, "first_party": 30000, "third_party": 20000 },
+  "week": { "tokens": 2100000, "sessions": 45 },
+  "total": { "tokens": 12400000, "messages": 890 },
+  "rank": 3
+}
+```
 
 ## What Gets Tracked
 
