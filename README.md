@@ -67,6 +67,7 @@ claudometer --version
 | `claudometer logout` | Sign out |
 | `claudometer collect` | Run a one-time metrics collection and upload |
 | `claudometer collect --dry-run` | Preview what would be collected without uploading |
+| `claudometer collect --reset` | Clear stored metrics and re-sync from scratch |
 | `claudometer setup` | Setup auto-sync every 30 minutes |
 | `claudometer setup --uninstall` | Remove auto-sync |
 | `claudometer status` | Show current tracking status |

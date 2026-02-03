@@ -3,10 +3,29 @@ import ora from 'ora';
 import { collectClaudeMetrics } from '../collectors/claude.js';
 import { collectOpenClawMetrics, isOpenClawAvailable } from '../collectors/openclaw.js';
 import { collectGitMetrics } from '../collectors/git.js';
-import { reportMetrics, reportOpenClawMetrics } from '../reporter.js';
+import { reportMetrics, reportOpenClawMetrics, resetMetrics } from '../reporter.js';
 import { getConfig } from '../config.js';
 
 export async function collectCommand(options) {
+  // Handle --reset flag: clear stored metrics before re-collecting
+  if (options.reset) {
+    const config = await getConfig();
+    if (!config.token) {
+      console.log(chalk.yellow('\nNot logged in. Run `claudometer login` first.\n'));
+      process.exit(1);
+    }
+
+    const resetSpinner = ora('Clearing stored metrics...').start();
+    try {
+      const result = await resetMetrics();
+      resetSpinner.succeed(`Cleared ${result.deleted} stored metric entries`);
+      console.log(chalk.gray('  Re-syncing all data from local files...\n'));
+    } catch (error) {
+      resetSpinner.fail(`Failed to reset metrics: ${error.message}`);
+      process.exit(1);
+    }
+  }
+
   console.log(chalk.bold('\n📊 Collecting metrics...\n'));
 
   // Collect Claude Code metrics (first-party)

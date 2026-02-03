@@ -50,6 +50,7 @@ program
   .command('collect')
   .description('Run a one-time metrics collection')
   .option('--dry-run', 'Show metrics without sending to server')
+  .option('--reset', 'Clear all stored metrics and re-sync from scratch')
   .action(collectCommand);
 
 program

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  db,
   findOrCreateOrg,
   findOrCreateUser,
   saveMetricsSnapshot,
@@ -350,6 +351,41 @@ router.get('/my-activity-by-source', async (req, res) => {
   } catch (error) {
     console.error('Failed to get user activity by source:', error);
     res.status(500).json({ error: 'Failed to get user activity by source' });
+  }
+});
+
+// DELETE /api/metrics/reset - Clear all daily metrics for the current user
+// This allows re-syncing all data from scratch (e.g., after timezone fixes)
+router.delete('/reset', async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { source } = req.query;
+
+    // Delete daily metrics for this user (optionally filtered by source)
+    let result;
+    if (source) {
+      result = await db.query(
+        `DELETE FROM daily_metrics WHERE user_id = $1 AND source = $2 RETURNING id`,
+        [userId, source]
+      );
+    } else {
+      result = await db.query(
+        `DELETE FROM daily_metrics WHERE user_id = $1 RETURNING id`,
+        [userId]
+      );
+    }
+
+    console.log(`[Reset] Deleted ${result.rowCount} daily_metrics rows for user ${userId}${source ? ` (source: ${source})` : ''}`);
+
+    res.json({
+      success: true,
+      deleted: result.rowCount,
+      source: source || 'all',
+      message: `Deleted ${result.rowCount} daily metric entries. Run 'claudometer collect' to re-sync.`,
+    });
+  } catch (error) {
+    console.error('Failed to reset metrics:', error);
+    res.status(500).json({ error: 'Failed to reset metrics' });
   }
 });
 
