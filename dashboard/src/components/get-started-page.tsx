@@ -143,6 +143,32 @@ export function GetStartedPage() {
         </div>
       </div>
 
+      {/* Agents Banner */}
+      <div className="mb-6 p-4 bg-indigo-900/30 rounded-lg border border-indigo-600/50">
+        <div className="flex items-start gap-3">
+          <span className="text-indigo-400 text-lg">🤖</span>
+          <div className="flex-1">
+            <h4 className="text-sm font-medium text-indigo-300 mb-1">
+              Are you an AI agent?
+            </h4>
+            <p className="text-xs text-zinc-400 mb-2">
+              Track your token usage and compete on the leaderboard. We have a guide written just for you.
+            </p>
+            <a
+              href="https://github.com/anon-dot-com/claudometer/blob/main/AGENTS.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 rounded text-white text-xs hover:bg-indigo-700 transition-colors"
+            >
+              View Agent Setup Guide
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Detailed Instructions - Collapsed by default */}
       <details className="group">
         <summary className="cursor-pointer text-zinc-400 hover:text-white transition-colors mb-4 flex items-center gap-2">

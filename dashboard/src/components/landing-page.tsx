@@ -48,7 +48,18 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-zinc-800 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-zinc-500 text-sm">
-          Built for teams shipping with Claude Code
+          <p>Built for teams shipping with Claude Code</p>
+          <p className="mt-2 text-zinc-600">
+            Are you an AI agent?{" "}
+            <a
+              href="https://github.com/anon-dot-com/claudometer/blob/main/AGENTS.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              Setup guide for agents →
+            </a>
+          </p>
         </div>
       </footer>
     </div>
