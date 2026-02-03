@@ -201,6 +201,115 @@ externalMetricsRouter.post('/daily', async (req, res) => {
   }
 });
 
+// GET /api/metrics/external/me - Get stats for the authenticated device's user
+// Returns combined stats (first-party + third-party) with breakdown
+externalMetricsRouter.get('/me', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing authorization header' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Validate device token
+    const device = await validateDeviceToken(token);
+    if (!device) {
+      return res.status(401).json({ error: 'Invalid or revoked device token' });
+    }
+
+    const userId = device.user_id;
+    const orgId = device.org_id;
+
+    // Get today's stats
+    const todayResult = await db.query(
+      `SELECT
+        COALESCE(SUM(claude_tokens), 0) as tokens,
+        COALESCE(SUM(claude_messages), 0) as messages,
+        COALESCE(SUM(claude_sessions), 0) as sessions,
+        COALESCE(SUM(CASE WHEN source = 'claude_code' THEN claude_tokens ELSE 0 END), 0) as first_party,
+        COALESCE(SUM(CASE WHEN source != 'claude_code' THEN claude_tokens ELSE 0 END), 0) as third_party
+       FROM daily_metrics
+       WHERE user_id = $1 AND date = CURRENT_DATE`,
+      [userId]
+    );
+
+    // Get this week's stats (last 7 days)
+    const weekResult = await db.query(
+      `SELECT
+        COALESCE(SUM(claude_tokens), 0) as tokens,
+        COALESCE(SUM(claude_messages), 0) as messages,
+        COALESCE(SUM(claude_sessions), 0) as sessions,
+        COALESCE(SUM(CASE WHEN source = 'claude_code' THEN claude_tokens ELSE 0 END), 0) as first_party,
+        COALESCE(SUM(CASE WHEN source != 'claude_code' THEN claude_tokens ELSE 0 END), 0) as third_party
+       FROM daily_metrics
+       WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days'`,
+      [userId]
+    );
+
+    // Get all-time stats
+    const totalResult = await db.query(
+      `SELECT
+        COALESCE(SUM(claude_tokens), 0) as tokens,
+        COALESCE(SUM(claude_messages), 0) as messages,
+        COALESCE(SUM(claude_sessions), 0) as sessions,
+        COALESCE(SUM(CASE WHEN source = 'claude_code' THEN claude_tokens ELSE 0 END), 0) as first_party,
+        COALESCE(SUM(CASE WHEN source != 'claude_code' THEN claude_tokens ELSE 0 END), 0) as third_party
+       FROM daily_metrics
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    // Get user's rank in org (by total tokens)
+    const rankResult = await db.query(
+      `SELECT rank FROM (
+        SELECT user_id, RANK() OVER (ORDER BY SUM(claude_tokens) DESC) as rank
+        FROM daily_metrics
+        WHERE org_id = $1
+        GROUP BY user_id
+      ) ranked
+      WHERE user_id = $2`,
+      [orgId, userId]
+    );
+
+    const today = todayResult.rows[0];
+    const week = weekResult.rows[0];
+    const total = totalResult.rows[0];
+    const rank = rankResult.rows[0]?.rank || null;
+
+    res.json({
+      user: device.name,
+      org: device.org_name,
+      today: {
+        tokens: parseInt(today.tokens),
+        messages: parseInt(today.messages),
+        sessions: parseInt(today.sessions),
+        first_party: parseInt(today.first_party),
+        third_party: parseInt(today.third_party),
+      },
+      week: {
+        tokens: parseInt(week.tokens),
+        messages: parseInt(week.messages),
+        sessions: parseInt(week.sessions),
+        first_party: parseInt(week.first_party),
+        third_party: parseInt(week.third_party),
+      },
+      total: {
+        tokens: parseInt(total.tokens),
+        messages: parseInt(total.messages),
+        sessions: parseInt(total.sessions),
+        first_party: parseInt(total.first_party),
+        third_party: parseInt(total.third_party),
+      },
+      rank: rank ? parseInt(rank) : null,
+    });
+  } catch (error) {
+    console.error('Failed to get external metrics:', error);
+    res.status(500).json({ error: 'Failed to get metrics' });
+  }
+});
+
 // Helper to verify user is a member of an organization
 async function verifyOrgMembership(userId, orgId) {
   try {

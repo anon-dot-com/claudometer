@@ -11,6 +11,7 @@ import { stopCommand } from '../src/commands/stop.js';
 import { collectCommand } from '../src/commands/collect.js';
 import { setupCommand } from '../src/commands/setup.js';
 import { linkCommand } from '../src/commands/link.js';
+import { bragCommand } from '../src/commands/brag.js';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json');
@@ -68,5 +69,10 @@ program
   .option('-l, --list', 'List linked devices')
   .option('-r, --revoke <id>', 'Revoke a device token')
   .action(linkCommand);
+
+program
+  .command('brag')
+  .description('Show your stats in a shareable format')
+  .action(bragCommand);
 
 program.parse();
