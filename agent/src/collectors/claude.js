@@ -63,7 +63,8 @@ export async function collectClaudeMetrics() {
         for (const msg of messages) {
           if (!msg.timestamp || !msg.message?.usage) continue;
 
-          const date = msg.timestamp.split('T')[0];
+          // Convert UTC timestamp to local date
+          const date = new Date(msg.timestamp).toLocaleDateString('en-CA');
           const usage = msg.message.usage;
           const model = msg.message.model || 'unknown';
 
