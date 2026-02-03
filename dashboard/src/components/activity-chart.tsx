@@ -68,7 +68,9 @@ export function ActivityChart() {
   }, [getToken]);
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // Parse as local date to avoid timezone shift
+    // dateStr is "YYYY-MM-DD", parsing with T00:00:00 treats it as local time
+    const date = new Date(dateStr + "T00:00:00");
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
