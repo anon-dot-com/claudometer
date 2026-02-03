@@ -14,9 +14,37 @@ export function GetStartedPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h2 className="text-2xl font-bold text-white mb-2">Get Started</h2>
-      <p className="text-zinc-400 mb-8">
+      <p className="text-zinc-400 mb-4">
         Track your Claude Code and Git activity. Choose your setup below.
       </p>
+
+      {/* Update Banner */}
+      <div className="mb-6 p-4 bg-amber-900/30 rounded-lg border border-amber-600/50">
+        <div className="flex items-start gap-3">
+          <span className="text-amber-500 text-lg">⚡</span>
+          <div className="flex-1">
+            <h4 className="text-sm font-medium text-amber-300 mb-1">
+              Already installed? Make sure you&apos;re on the latest version
+            </h4>
+            <p className="text-xs text-zinc-400 mb-2">
+              We&apos;ve added real-time metrics and improved accuracy. Update to get the latest features.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="bg-zinc-800 px-3 py-1.5 rounded text-xs text-green-400 font-mono">
+                npm update -g claudometer
+              </code>
+              <button
+                onClick={() =>
+                  copyToClipboard("npm update -g claudometer", "update-banner")
+                }
+                className="px-3 py-1.5 bg-amber-600 rounded text-white text-xs hover:bg-amber-700 transition-colors"
+              >
+                {copiedItem === "update-banner" ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Quickstart Options */}
       <div className="grid gap-6 md:grid-cols-2 mb-8">
