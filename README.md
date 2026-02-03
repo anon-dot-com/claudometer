@@ -15,28 +15,32 @@ Claudometer consists of three parts:
 ### Option A: Claude Code Only (Single Machine)
 
 ```bash
-npm i -g claudometer && claudometer login && claudometer collect
+npm i -g claudometer && claudometer login && claudometer setup
 ```
+
+This installs, authenticates, and sets up auto-sync (every 30 minutes).
 
 ### Option B: Claude Code + OpenClaw (Multiple Machines)
 
 **Step 1:** On your primary machine:
 ```bash
-npm i -g claudometer && claudometer login && claudometer link --generate
+npm i -g claudometer && claudometer login && claudometer setup && claudometer link --generate
 ```
 
 **Step 2:** On your OpenClaw server (replace CODE with the 6-character code):
 ```bash
-npm i -g claudometer && claudometer link --connect CODE && claudometer collect
+npm i -g claudometer && claudometer link --connect CODE && claudometer setup
 ```
 
-### Setup Auto-Sync (Recommended)
+Both machines will now auto-sync every 30 minutes.
 
-```bash
-claudometer setup
-```
+### How Auto-Sync Works
 
-This syncs metrics automatically every 30 minutes (macOS LaunchAgent).
+`claudometer setup` configures automatic syncing:
+- **macOS**: Uses LaunchAgent
+- **Linux**: Uses cron jobs
+
+To manually sync once: `claudometer collect`
 
 ### View the Dashboard
 

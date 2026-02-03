@@ -57,19 +57,19 @@ export function GetStartedPage() {
           </div>
           <h3 className="text-lg font-bold text-white mb-2">Claude Code Only</h3>
           <p className="text-sm text-zinc-400 mb-4">
-            Track usage on this machine only
+            Track usage on this machine with auto-sync
           </p>
           <div className="space-y-3">
             <div>
               <p className="text-xs text-zinc-500 mb-1">Run this command:</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
-                  npm i -g claudometer && claudometer login && claudometer collect
+                  npm i -g claudometer && claudometer login && claudometer setup
                 </code>
                 <button
                   onClick={() =>
                     copyToClipboard(
-                      "npm i -g claudometer && claudometer login && claudometer collect",
+                      "npm i -g claudometer && claudometer login && claudometer setup",
                       "quick-local"
                     )
                   }
@@ -78,6 +78,9 @@ export function GetStartedPage() {
                   {copiedItem === "quick-local" ? "Copied!" : "Copy"}
                 </button>
               </div>
+              <p className="text-xs text-zinc-500 mt-2">
+                Syncs automatically every 30 minutes
+              </p>
             </div>
           </div>
         </div>
@@ -100,12 +103,12 @@ export function GetStartedPage() {
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
-                  npm i -g claudometer && claudometer login && claudometer link --generate
+                  npm i -g claudometer && claudometer login && claudometer setup && claudometer link --generate
                 </code>
                 <button
                   onClick={() =>
                     copyToClipboard(
-                      "npm i -g claudometer && claudometer login && claudometer link --generate",
+                      "npm i -g claudometer && claudometer login && claudometer setup && claudometer link --generate",
                       "quick-primary"
                     )
                   }
@@ -121,12 +124,12 @@ export function GetStartedPage() {
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-green-400 font-mono overflow-x-auto">
-                  npm i -g claudometer && claudometer link --connect CODE && claudometer collect
+                  npm i -g claudometer && claudometer link --connect CODE && claudometer setup
                 </code>
                 <button
                   onClick={() =>
                     copyToClipboard(
-                      "npm i -g claudometer && claudometer link --connect CODE && claudometer collect",
+                      "npm i -g claudometer && claudometer link --connect CODE && claudometer setup",
                       "quick-secondary"
                     )
                   }
