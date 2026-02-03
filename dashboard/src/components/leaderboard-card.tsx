@@ -96,23 +96,16 @@ export function LeaderboardCard({ title, metric, entries, loading }: Leaderboard
                 </div>
 
                 {/* Stacked progress bar showing first-party vs third-party */}
+                {/* Purple = Claude Code, Teal = 3rd party (consistent colors for all ranks) */}
                 <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
                   {hasMultipleSources ? (
                     <>
-                      {/* First-party (Claude Code) - purple */}
+                      {/* First-party (Claude Code) - always purple */}
                       <div
-                        className={`h-full transition-all duration-500 ${
-                          index === 0
-                            ? "bg-purple-500"
-                            : index === 1
-                            ? "bg-zinc-500"
-                            : index === 2
-                            ? "bg-orange-600/70"
-                            : "bg-zinc-600"
-                        }`}
+                        className="h-full bg-purple-500 transition-all duration-500"
                         style={{ width: `${firstPartyPct}%` }}
                       />
-                      {/* Third-party (OpenClaw, etc.) - teal */}
+                      {/* Third-party (OpenClaw, etc.) - always teal */}
                       <div
                         className="h-full bg-teal-500 transition-all duration-500"
                         style={{ width: `${thirdPartyPct}%` }}
@@ -121,13 +114,7 @@ export function LeaderboardCard({ title, metric, entries, loading }: Leaderboard
                   ) : (
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
-                        index === 0
-                          ? "bg-gradient-to-r from-purple-600 to-purple-400"
-                          : index === 1
-                          ? "bg-zinc-500"
-                          : index === 2
-                          ? "bg-orange-600/70"
-                          : "bg-zinc-600"
+                        thirdParty > 0 ? "bg-teal-500" : "bg-purple-500"
                       }`}
                       style={{ width: `${percentage}%` }}
                     />
