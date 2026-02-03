@@ -10,41 +10,50 @@ Claudometer consists of three parts:
 2. **CLI** - Command-line tool that collects and syncs your local metrics
 3. **API** - Backend service that stores and aggregates data
 
-## Quick Start for Team Members
+## Quick Start
 
-### 1. Install the CLI
-
-```bash
-npm install -g claudometer
-```
-
-### 2. Login to your organization
+### Option A: Claude Code Only (Single Machine)
 
 ```bash
-claudometer login
+npm i -g claudometer && claudometer login && claudometer collect
 ```
 
-This opens your browser to authenticate with your team's Claudometer dashboard.
+### Option B: Claude Code + OpenClaw (Multiple Machines)
 
-### 3. Sync your metrics
-
+**Step 1:** On your primary machine:
 ```bash
-claudometer collect
+npm i -g claudometer && claudometer login && claudometer link --generate
 ```
 
-This collects your Claude Code usage and Git activity from the last 30 days and uploads it.
+**Step 2:** On your OpenClaw server (replace CODE with the 6-character code):
+```bash
+npm i -g claudometer && claudometer link --connect CODE && claudometer collect
+```
 
-### 4. Setup automatic syncing (recommended)
+### Setup Auto-Sync (Recommended)
 
 ```bash
 claudometer setup
 ```
 
-This configures your system to automatically sync metrics every 30 minutes using a LaunchAgent (macOS).
+This syncs metrics automatically every 30 minutes (macOS LaunchAgent).
 
-### 5. View the dashboard
+### View the Dashboard
 
 Visit [claudometer.ai](https://claudometer.ai) to see your metrics and team leaderboards.
+
+## Updating
+
+To get the latest features and fixes:
+
+```bash
+npm update -g claudometer
+```
+
+Check your version:
+```bash
+claudometer --version
+```
 
 ## CLI Commands
 
@@ -53,54 +62,47 @@ Visit [claudometer.ai](https://claudometer.ai) to see your metrics and team lead
 | `claudometer login` | Authenticate with your organization |
 | `claudometer logout` | Sign out |
 | `claudometer collect` | Run a one-time metrics collection and upload |
+| `claudometer collect --dry-run` | Preview what would be collected without uploading |
 | `claudometer setup` | Setup auto-sync every 30 minutes |
 | `claudometer setup --uninstall` | Remove auto-sync |
 | `claudometer status` | Show current tracking status |
-| `claudometer link --generate` | Generate a code to link external tools |
+| `claudometer link --generate` | Generate a code to link secondary devices |
+| `claudometer link --connect <code>` | Connect a secondary device using a code |
 | `claudometer link --list` | List linked devices |
 | `claudometer link --revoke <id>` | Revoke a device token |
 
-## Using with OpenClaw (Moltbot)
+## Using with OpenClaw / Third-Party Tools
 
-If your team uses [OpenClaw](https://openclaw.ai) (formerly Moltbot/Clawdbot) alongside Claude Code, you can track both in Claudometer.
+Track Claude usage from secondary machines running OpenClaw, MoldBot, or other Claude tools.
 
 ### Setup
 
-1. **Install the OpenClaw plugin** on the machine running OpenClaw:
-
-   ```bash
-   openclaw plugins install @claudometer/openclaw-reporter
-   ```
-
-2. **Generate a linking code** from any machine with Claudometer CLI:
-
+1. **On your primary machine** (where you have browser access):
    ```bash
    claudometer link --generate
    ```
-
    This displays a 6-character code valid for 10 minutes.
 
-3. **Link OpenClaw** using the code:
-
+2. **On the secondary machine** (SSH into your server):
    ```bash
-   openclaw claudometer link ABC123
+   npm install -g claudometer
+   claudometer link --connect ABC123  # Replace with your code
+   claudometer collect
    ```
 
-   Or use the chat command: `/claudometer link ABC123`
-
-4. **Verify the connection**:
-
+3. **Setup auto-sync** on the secondary machine:
    ```bash
-   openclaw claudometer status
+   claudometer setup
    ```
 
 ### How It Works
 
-- The plugin automatically syncs usage every 30 minutes (configurable)
-- Metrics appear in your Claudometer dashboard alongside Claude Code usage
-- Use `/claudometer` in OpenClaw chat to check sync status
+- The CLI reads directly from OpenClaw's session transcripts (`~/.openclaw/`, `~/.moldbot/`, etc.)
+- No plugins needed - just install the CLI and link with a code
+- Usage appears as "3rd party" in leaderboards alongside your Claude Code (1st party) usage
+- Real-time data collection from JSONL session files
 
-### Managing Devices
+### Managing Linked Devices
 
 ```bash
 # List all linked devices
@@ -112,28 +114,33 @@ claudometer link --revoke clm_abc123...
 
 ## What's Collected
 
-### Claude Code Metrics
+### Claude Code Metrics (First-Party)
 - Sessions and messages
 - Input/output tokens
+- Cache tokens (read and creation)
 - Tool calls
 - Usage by model
+- Real-time data from `~/.claude/projects/` session transcripts
 
-### External Tools (OpenClaw, etc.)
+### OpenClaw Metrics (Third-Party)
 - Messages and sessions
 - Token usage
+- Tool calls
 - Usage by model
-- Tracked separately with source breakdown
+- Real-time data from `~/.openclaw/`, `~/.moldbot/`, etc.
 
 ### Git Metrics
-- Commits authored by you
+- Commits authored by you (matched by git email)
 - Lines added/deleted
 - Files changed
 - Activity by repository
+- Scans: `~/Documents`, `~/Projects`, `~/Code`, `~/dev`, `~/repos`, `~/workspace`, `~/workspaces`, `~/Github`, `~/conductor`
 
 ## Privacy
 
 - **Only your commits** are tracked (matched by your git email)
 - **No code content** is ever collected - just aggregate statistics
+- **Timestamps** are converted to your local timezone
 - Data is sent to your organization's Claudometer instance
 - All data belongs to your organization
 
@@ -161,7 +168,7 @@ Claudometer can be self-hosted. See the deployment guides:
 - Node.js >= 18.0.0
 - macOS, Linux, or Windows
 - Git (for repository metrics)
-- Claude Code (for Claude metrics)
+- Claude Code or OpenClaw (for Claude metrics)
 
 ## Troubleshooting
 
@@ -173,11 +180,16 @@ Make sure you're logged in: `claudometer login`
 2. Refresh the dashboard
 3. Check you're viewing the correct time period
 
+### Missing Git repos
+The CLI scans common directories. If your repos are elsewhere, they won't be found automatically.
+
 ### Login issues
 1. Run `claudometer logout`
 2. Run `claudometer login` again
 
+### Version shows old number
+Run `npm update -g claudometer` to get the latest version.
+
 ## License
 
 MIT
-
